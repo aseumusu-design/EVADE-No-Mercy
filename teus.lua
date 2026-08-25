@@ -1,432 +1,175 @@
---[[
-=========================================================================
-    A2 HUB V6.0 - THE ULTIMATE SURVIVAL COMBAT SYSTEM
-    - Target Category Selector (Killer, Survivor, Zombie)
-    - Compact FOV Circle (80 - 120) & Prediction Toggle
-    - Separated Smart CamLock & Independent Laser Tracer
-    - Dynamic Wall/Proximity Check & Remote-Triggered AutoShoot
-=========================================================================
-]]
-
-local Players             = game:GetService("Players")
-local RunService          = game:GetService("RunService")
-local Workspace           = game:GetService("Workspace")
-local ReplicatedStorage   = game:GetService("ReplicatedStorage")
-local CoreGui             = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
-local Camera      = Workspace.CurrentCamera
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- ==================== THEME CONFIG ====================
-local THEME = {
-    Bg       = Color3.fromRGB(12, 12, 18),
-    Dark     = Color3.fromRGB(18, 18, 26),
-    Panel    = Color3.fromRGB(24, 24, 35),
-    Accent   = Color3.fromRGB(138, 43, 226),
-    Green    = Color3.fromRGB(46, 204, 113),
-    Red      = Color3.fromRGB(231, 76, 60),
-    White    = Color3.fromRGB(255, 255, 255),
-    TextDim  = Color3.fromRGB(150, 150, 170),
-}
-
-local TARGET_COLORS = {
-    Killer   = Color3.fromRGB(255, 60, 60),
-    Survivor = Color3.fromRGB(52, 152, 219),
-    Zombie   = Color3.fromRGB(46, 204, 113),
-    All      = Color3.fromRGB(241, 196, 15),
-}
-
--- ==================== SMART CONFIG ====================
 local Config = {
-    TargetType     = "Killer",  -- Killer, Survivor, Zombie, All
-    AimPart        = "Head",    -- "Head" atau "Body"
-    
-    LaserEnabled   = true,      -- Laser penunjuk langsung ke target
-    CamLockEnabled = true,      -- Camera Lock halus (Auto mati jika ada tembok/terlalu dekat)
-    Prediction     = true,      -- Prediksi mili-detik pergerakan target
-    AutoShoot      = true,      -- Tembak otomatis saat remote game aktif & target valid
-    
-    FOVRadius      = 100,       -- Ukuran FOV kompak (Range 80 - 120)
-    MinDist        = 5,         -- Batas jarak terlalu dekat (Aman dari bug/meletup)
-    MaxDist        = 800,       -- Jarak maksimal
-    FireDelay      = 0.04,
+	Enabled = false,
+	TargetPlayer = nil
 }
 
-local CurrentTarget = nil
-local LastFireTime = 0
+-- Buat UI Panel Lynx
+if PlayerGui:FindFirstChild("LynxDoubleFireSync") then
+	PlayerGui.LynxDoubleFireSync:Destroy()
+end
 
--- ==================== VISUAL: LASER TRACER ====================
-local LaserPart = Instance.new("Part")
-LaserPart.Name = "A2_LaserTracer"
-LaserPart.Anchored = true
-LaserPart.CanCollide = false
-LaserPart.CanQuery = false
-LaserPart.CanTouch = false
-LaserPart.Material = Enum.Material.Neon
-LaserPart.Size = Vector3.new(0.1, 0.1, 1)
-LaserPart.Transparency = 1
-LaserPart.Parent = Workspace
-
--- ==================== VISUAL: FOV CIRCLE (80 - 120) ====================
-local guiParent = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
-pcall(function() if guiParent:FindFirstChild("A2HubV6") then guiParent.A2HubV6:Destroy() end end)
-
-local ScreenGui = Instance.new("ScreenGui", guiParent)
-ScreenGui.Name = "A2HubV6"
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "LynxDoubleFireSync"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = PlayerGui
 
-local FOVFrame = Instance.new("Frame", ScreenGui)
-FOVFrame.Name = "FOVCircle"
-FOVFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-FOVFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-FOVFrame.Size = UDim2.new(0, Config.FOVRadius * 2, 0, Config.FOVRadius * 2)
-FOVFrame.BackgroundTransparency = 1
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 240, 0, 290)
+MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
 
-local UICornerFOV = Instance.new("UICorner", FOVFrame)
-UICornerFOV.CornerRadius = UDim.new(1, 0)
-
-local UIStrokeFOV = Instance.new("UIStroke", FOVFrame)
-UIStrokeFOV.Color = Color3.fromRGB(255, 255, 255)
-UIStrokeFOV.Thickness = 1.5
-UIStrokeFOV.Transparency = 0.3
-
--- ==================== UTILS & SMART CHECKS ====================
-local function ClassifyTarget(char, plr)
-    local n = (char and char.Name or ""):lower()
-    local t = (plr and plr.Team and plr.Team.Name or ""):lower()
-    if n:find("kill") or n:find("monster") or n:find("slasher") or n:find("murder") or t:find("kill") then 
-        return "Killer" 
-    end
-    if n:find("zomb") or n:find("infect") then return "Zombie" end
-    if plr then return "Survivor" end
-    return "Killer"
-end
-
-local function IsAlive(char)
-    if not char or not char.Parent then return false end
-    local h = char:FindFirstChildOfClass("Humanoid")
-    return h and h.Health > 0 and (char:FindFirstChild("Head") ~= nil or char:FindFirstChild("HumanoidRootPart") ~= nil)
-end
-
-local function GetTargetPart(char)
-    if Config.AimPart == "Head" then
-        return char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
-    else
-        return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
-    end
-end
-
--- WallCheck Pintar: Deteksi halangan tembok
-local function HasLineOfSight(targetPart)
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp or not targetPart then return false end
-
-    local origin = hrp.Position
-    local direction = targetPart.Position - origin
-    
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    raycastParams.FilterDescendantsInstances = {char, Camera}
-    raycastParams.IgnoreWater = true
-
-    local result = Workspace:Raycast(origin, direction, raycastParams)
-    if result then
-        local hitModel = result.Instance:FindFirstAncestorOfClass("Model")
-        if hitModel and hitModel ~= targetPart.Parent then
-            return false
-        end
-    end
-    return true
-end
-
--- Cari target di dalam radius FOV kecil
-local function FindSmartTarget()
-    local origin = Camera.CFrame.Position
-    local best, bestScore = nil, math.huge
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and IsAlive(p.Character) then
-            local kind = ClassifyTarget(p.Character, p)
-            if Config.TargetType == "All" or kind == Config.TargetType then
-                local part = GetTargetPart(p.Character)
-                if part then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                    if onScreen then
-                        local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                        if mouseDist <= Config.FOVRadius then
-                            local dist = (part.Position - origin).Magnitude
-                            if dist <= Config.MaxDist and dist < bestScore then
-                                best = { player = p, char = p.Character, kind = kind, name = p.Name, part = part }
-                                bestScore = dist
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return best
-end
-
--- Prediksi Milidetik Pergerakan Target
-local function GetPredictPos(char, part)
-    if not part then return nil end
-    if not Config.Prediction then return part.Position end
-    
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if hrp and hrp.AssemblyLinearVelocity then
-        local distance = (Camera.CFrame.Position - part.Position).Magnitude
-        local travelTime = distance / 1500 -- Waktu tempuh milidetik proyektil presisi tinggi
-        return part.Position + (hrp.AssemblyLinearVelocity * travelTime)
-    end
-    return part.Position
-end
-
-local function GetEmperorGun()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local tof = char:FindFirstChild("Twist of Fate")
-    if not tof then return nil end
-    local arm = tof:FindFirstChild("Right Arm")
-    if not arm then return nil end
-    return arm:FindFirstChild("EmperorGun")
-end
-
--- AutoShoot Berdasarkan Eksekusi Remote Game Aktif
-local function FireWeapon(targetPos)
-    local now = tick()
-    if now - LastFireTime < Config.FireDelay then return end
-    LastFireTime = now
-
-    local gun = GetEmperorGun()
-    local remote = ReplicatedStorage:FindFirstChild("Remotes")
-    remote = remote and remote:FindFirstChild("Items")
-    remote = remote and remote:FindFirstChild("Twist of Fate")
-    remote = remote and remote:FindFirstChild("Fire")
-
-    if gun and remote then
-        local from = gun:IsA("BasePart") and gun.Position or Camera.CFrame.Position
-        local dir = (targetPos - from).Unit
-        pcall(function() remote:FireServer(gun, Vector3.new(dir.X, dir.Y, dir.Z)) end)
-    end
-end
-
--- ==================== MAIN RENDER STEPPED LOOP ====================
-RunService.RenderStepped:Connect(function()
-    FOVFrame.Size = UDim2.new(0, Config.FOVRadius * 2, 0, Config.FOVRadius * 2)
-
-    CurrentTarget = FindSmartTarget()
-
-    if CurrentTarget and IsAlive(CurrentTarget.char) then
-        local part = GetTargetPart(CurrentTarget.char)
-        if part then
-            local predictedPos = GetPredictPos(CurrentTarget.char, part)
-            local distToTarget = (part.Position - Camera.CFrame.Position).Magnitude
-
-            -- 1. LASER TRACER INDEPENDEN
-            if Config.LaserEnabled then
-                local gun = GetEmperorGun()
-                local from = (gun and gun.Position) or Camera.CFrame.Position
-                LaserPart.Transparency = 0.2
-                LaserPart.Color = TARGET_COLORS[CurrentTarget.kind] or THEME.White
-                LaserPart.CFrame = CFrame.lookAt(from, predictedPos) * CFrame.new(0, 0, -(predictedPos - from).Magnitude / 2)
-                LaserPart.Size = Vector3.new(0.09, 0.09, (predictedPos - from).Magnitude)
-            else
-                LaserPart.Transparency = 1
-            end
-
-            -- 2. SMART CAMERA LOCK (Dengan Cek Tembok & Jarak Aman)
-            local canLock = true
-            if distToTarget < Config.MinDist then canLock = false end -- Terlalu dekat -> Mati sementara
-            if not HasLineOfSight(part) then canLock = false end        -- Terhalang tembok -> Mati sementara
-
-            if Config.CamLockEnabled and canLock then
-                local targetCF = CFrame.new(Camera.CFrame.Position, predictedPos)
-                Camera.CFrame = Camera.CFrame:Lerp(targetCF, 0.4) -- Koreksi halus tanpa kaku
-            end
-
-            -- 3. AUTO SHOOT VIA REMOTE
-            if Config.AutoShoot and canLock then
-                FireWeapon(predictedPos)
-            end
-        end
-    else
-        LaserPart.Transparency = 1
-    end
-end)
-
--- ==================== MODULAR SIMPLE UI (A2 HUB V6) ====================
-local Bubble = Instance.new("ImageButton", ScreenGui)
-Bubble.Size = UDim2.new(0, 50, 0, 50)
-Bubble.Position = UDim2.new(0, 15, 0.25, 0)
-Bubble.BackgroundColor3 = THEME.Dark
-Bubble.Image = "rbxassetid://126404877070566"
-Bubble.Active = true
-Bubble.Draggable = true
-Instance.new("UICorner", Bubble).CornerRadius = UDim.new(1, 0)
-
-local Window = Instance.new("Frame", ScreenGui)
-Window.Size = UDim2.new(0, 440, 0, 380)
-Window.Position = UDim2.new(0.5, -220, 0.5, -190)
-Window.BackgroundColor3 = THEME.Bg
-Window.Active = true
-Window.Draggable = true
-Instance.new("UICorner", Window).CornerRadius = UDim.new(0, 12)
-
-Bubble.MouseButton1Click:Connect(function() Window.Visible = not Window.Visible end)
-
-local Header = Instance.new("Frame", Window)
-Header.Size = UDim2.new(1, 0, 0, 38)
-Header.BackgroundColor3 = THEME.Dark
-Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
-
-local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(1, -40, 1, 0)
-Title.Position = UDim2.new(0, 15, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "A2 HUB V6.0 — SMART SURVIVAL"
-Title.TextColor3 = THEME.White
-Title.Font = Enum.Font.GothamBold
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Title.Text = "Lynx Aim (Double Fire Sync)"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 12
-Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
 
-local CloseBtn = Instance.new("TextButton", Header)
-CloseBtn.Size = UDim2.new(0, 24, 0, 24)
-CloseBtn.Position = UDim2.new(1, -30, 0.5, -12)
-CloseBtn.BackgroundColor3 = THEME.Red
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = THEME.White
-CloseBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
-CloseBtn.MouseButton1Click:Connect(function() Window.Visible = false end)
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 30)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.13, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+ToggleBtn.Text = "Silent Aim: OFF"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.TextSize = 13
+ToggleBtn.Parent = MainFrame
 
-local MainScroll = Instance.new("ScrollingFrame", Window)
-MainScroll.Size = UDim2.new(1, -20, 1, -50)
-MainScroll.Position = UDim2.new(0, 10, 0, 45)
-MainScroll.BackgroundTransparency = 1
-MainScroll.ScrollBarThickness = 2
-MainScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-local uiLay = Instance.new("UIListLayout", MainScroll)
-uiLay.Padding = UDim.new(0, 8)
-
-local function AddToggle(text, default, callback)
-    local holder = Instance.new("Frame", MainScroll)
-    holder.Size = UDim2.new(1, 0, 0, 32)
-    holder.BackgroundColor3 = THEME.Dark
-    Instance.new("UICorner", holder).CornerRadius = UDim.new(0, 6)
-
-    local lbl = Instance.new("TextLabel", holder)
-    lbl.Size = UDim2.new(1, -45, 1, 0)
-    lbl.Position = UDim2.new(0, 10, 0, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = text
-    lbl.Font = Enum.Font.GothamMedium
-    lbl.TextSize = 11
-    lbl.TextColor3 = THEME.White
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-
-    local dot = Instance.new("Frame", holder)
-    dot.Size = UDim2.new(0, 28, 0, 14)
-    dot.Position = UDim2.new(1, -36, 0.5, -7)
-    dot.BackgroundColor3 = default and THEME.Green or Color3.fromRGB(60, 60, 75)
-    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-
-    local state = default
-    holder.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-            state = not state
-            dot.BackgroundColor3 = state and THEME.Green or Color3.fromRGB(60, 60, 75)
-            callback(state)
-        end
-    end)
-end
-
--- Target Category Selector (Killer, Survivor, Zombie)
-local tLabel = Instance.new("TextLabel", MainScroll)
-tLabel.Size = UDim2.new(1, 0, 0, 18)
-tLabel.BackgroundTransparency = 1
-tLabel.Text = "Pilih Target Kategori:"
-tLabel.TextColor3 = THEME.TextDim
-tLabel.Font = Enum.Font.GothamMedium
-tLabel.TextSize = 11
-tLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local targetContainer = Instance.new("Frame", MainScroll)
-targetContainer.Size = UDim2.new(1, 0, 0, 30)
-targetContainer.BackgroundTransparency = 1
-local tcLayout = Instance.new("UIListLayout", targetContainer)
-tcLayout.FillDirection = Enum.FillDirection.Horizontal
-tcLayout.Padding = UDim.new(0, 5)
-
-for _, tName in ipairs({"Killer", "Survivor", "Zombie"}) do
-    local btn = Instance.new("TextButton", targetContainer)
-    btn.Size = UDim2.new(0.32, 0, 1, 0)
-    btn.BackgroundColor3 = (Config.TargetType == tName) and THEME.Accent or THEME.Dark
-    btn.Text = tName
-    btn.TextColor3 = THEME.White
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 11
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    
-    btn.MouseButton1Click:Connect(function()
-        Config.TargetType = tName
-        for _, child in ipairs(targetContainer:GetChildren()) do
-            if child:IsA("TextButton") then
-                child.BackgroundColor3 = (child.Text == tName) and THEME.Accent or THEME.Dark
-            end
-        end
-    end)
-end
-
--- FOV Radius Adjuster (80 - 120)
-local fovFrame = Instance.new("Frame", MainScroll)
-fovFrame.Size = UDim2.new(1, 0, 0, 40)
-fovFrame.BackgroundColor3 = THEME.Dark
-Instance.new("UICorner", fovFrame).CornerRadius = UDim.new(0, 6)
-
-local fovLbl = Instance.new("TextLabel", fovFrame)
-fovLbl.Size = UDim2.new(1, -10, 0, 18)
-fovLbl.Position = UDim2.new(0, 10, 0, 2)
-fovLbl.BackgroundTransparency = 1
-fovLbl.Text = "FOV Circle Size: " .. Config.FOVRadius
-fovLbl.TextColor3 = THEME.White
-fovLbl.Font = Enum.Font.GothamMedium
-fovLbl.TextSize = 11
-fovLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-local btnMinus = Instance.new("TextButton", fovFrame)
-btnMinus.Size = UDim2.new(0, 40, 0, 18)
-btnMinus.Position = UDim2.new(0, 10, 0, 20)
-btnMinus.BackgroundColor3 = THEME.Panel
-btnMinus.Text = "-"
-btnMinus.TextColor3 = THEME.White
-Instance.new("UICorner", btnMinus).CornerRadius = UDim.new(0, 4)
-
-local btnPlus = Instance.new("TextButton", fovFrame)
-btnPlus.Size = UDim2.new(0, 40, 0, 18)
-btnPlus.Position = UDim2.new(0, 55, 0, 20)
-btnPlus.BackgroundColor3 = THEME.Panel
-btnPlus.Text = "+"
-btnPlus.TextColor3 = THEME.White
-Instance.new("UICorner", btnPlus).CornerRadius = UDim.new(0, 4)
-
-btnMinus.MouseButton1Click:Connect(function()
-    Config.FOVRadius = math.clamp(Config.FOVRadius - 10, 80, 120)
-    fovLbl.Text = "FOV Circle Size: " .. Config.FOVRadius
+ToggleBtn.MouseButton1Click:Connect(function()
+	Config.Enabled = not Config.Enabled
+	if Config.Enabled then
+		ToggleBtn.Text = "Silent Aim: ON"
+		ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+	else
+		ToggleBtn.Text = "Silent Aim: OFF"
+		ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+	end
 end)
 
-btnPlus.MouseButton1Click:Connect(function()
-    Config.FOVRadius = math.clamp(Config.FOVRadius + 10, 80, 120)
-    fovLbl.Text = "FOV Circle Size: " .. Config.FOVRadius
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(0.9, 0, 0, 25)
+StatusLabel.Position = UDim2.new(0.05, 0, 0.28, 0)
+StatusLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+StatusLabel.Text = "Target: Belum dipilih"
+StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 200)
+StatusLabel.TextSize = 11
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.Parent = MainFrame
+
+local ScrollingList = Instance.new("ScrollingFrame")
+ScrollingList.Size = UDim2.new(0.9, 0, 0, 110)
+ScrollingList.Position = UDim2.new(0.05, 0, 0.40, 0)
+ScrollingList.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ScrollingList.BorderSizePixel = 0
+ScrollingList.CanvasSize = UDim2.new(0, 0, 2, 0)
+ScrollingList.ScrollBarThickness = 5
+ScrollingList.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ScrollingList
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local RefreshBtn = Instance.new("TextButton")
+RefreshBtn.Size = UDim2.new(0.9, 0, 0, 25)
+RefreshBtn.Position = UDim2.new(0.05, 0, 0.86, 0)
+RefreshBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+RefreshBtn.Text = "Refresh Player"
+RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RefreshBtn.TextSize = 11
+RefreshBtn.Parent = MainFrame
+
+local function RefreshList()
+	for _, child in pairs(ScrollingList:GetChildren()) do
+		if child:IsA("TextButton") then child:Destroy() end
+	end
+	for _, p in pairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(1, 0, 0, 25)
+			btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+			btn.Text = p.Name
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.TextSize = 11
+			btn.Parent = ScrollingList
+			btn.MouseButton1Click:Connect(function()
+				Config.TargetPlayer = p
+				StatusLabel.Text = "Target: " .. p.Name
+			end)
+		end
+	end
+end
+
+RefreshBtn.MouseButton1Click:Connect(RefreshList)
+RefreshList()
+
+-- Mendapatkan posisi kepala target
+local function getTargetHeadPosition()
+	if Config.TargetPlayer and Config.TargetPlayer.Character then
+		local targetChar = Config.TargetPlayer.Character
+		local head = targetChar:FindFirstChild("Head") or targetChar:FindFirstChild("HumanoidRootPart")
+		local humanoid = targetChar:FindFirstChildOfClass("Humanoid")
+		if head and humanoid and humanoid.Health > 0 then
+			return head.Position
+		end
+	end
+	return nil
+end
+
+-- Variabel pencegah spam tak terbatas (anti crash)
+local isFiring = false
+
+-- Memantau remote Fire bawaan game secara langsung (Event Listener)
+local fireRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Items"):WaitForChild("Twist of Fate"):WaitForChild("Fire")
+
+fireRemote.OnClientEvent:Connect(function()
+	-- Cadangan jika game pakai ClientEvent
 end)
 
--- Toggles UI
-AddToggle("Laser Tracer Active", Config.LaserEnabled, function(v) Config.LaserEnabled = v end)
-AddToggle("Smart Camera Lock (CamLock)", Config.CamLockEnabled, function(v) Config.CamLockEnabled = v end)
-AddToggle("Millisecond Prediction", Config.Prediction, function(v) Config.Prediction = v end)
-AddToggle("Auto Shoot (Remote Trigger)", Config.AutoShoot, function(v) Config.AutoShoot = v end)
+-- Kita gunakan teknik hook ringan khusus untuk menangkap saat remote Fire dipanggil oleh tombol asli game
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+	local method = getnamecallmethod()
+	local args = {...}
 
-print("✅ A2 HUB V6.0 Loaded Successfully!")
+	-- Jika game memanggil FireServer untuk senjata Twist of Fate dan fitur aktif
+	if Config.Enabled and method == "FireServer" and self == fireRemote and not isFiring then
+		isFiring = true
+		
+		-- Jalankan tembakan kedua versi kita secara bersamaan ke kepala target
+		task.spawn(function()
+			local char = LocalPlayer.Character
+			if char and char:FindFirstChild("Head") then
+				local tool = char:FindFirstChild("Twist of Fate")
+				local targetPos = getTargetHeadPosition()
+				
+				if tool and targetPos then
+					local newDir = (targetPos - char.Head.Position).Unit
+					local customArgs = {
+						tool,
+						vector.create(newDir.X, newDir.Y, newDir.Z)
+					}
+					
+					pcall(function()
+						fireRemote:FireServer(unpack(customArgs))
+					end)
+				end
+			end
+			task.wait(0.1) -- Jeda mikro agar tidak infinite loop/crash
+			isFiring = false
+		end)
+	end
+
+	return oldNamecall(self, unpack(args))
+end)
