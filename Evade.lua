@@ -1,6 +1,5 @@
 -- ============================================
--- KILLER SKILL REMOTE + ANIMATION CAPTURER
--- Klik tombol skill → copy remote + capture animasi
+-- KILLER SKILL REMOTE + ANIMATION CAPTURER + LOOP
 -- ============================================
 
 local player = game.Players.LocalPlayer
@@ -11,8 +10,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- Variabel global
 local capturedAnims = {}  -- { [id] = {name=..., id=...} }
 local remoteEventsList = {}
-local selectedRemote = nil
-local remoteArgsCache = {}  -- buat simpan argument per remote
+local activeTracks = {}   -- menyimpan track yang sedang berjalan
 
 -- ============================================
 -- 1. BUAT GUI
@@ -21,10 +19,9 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "KillerSkillGUI"
 screenGui.Parent = playerGui
 
--- Frame utama
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 650, 0, 500)
-frame.Position = UDim2.new(0.5, -325, 0.5, -250)
+frame.Size = UDim2.new(0, 700, 0, 520)
+frame.Position = UDim2.new(0.5, -350, 0.5, -260)
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BackgroundTransparency = 0.1
 frame.BorderSizePixel = 0
@@ -37,7 +34,7 @@ corner.Parent = frame
 -- Judul
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 35)
-title.Text = "🎯 Killer Skills + Animation Capture"
+title.Text = "🎯 Killer Skills + Animation Capture (Loop)"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 20
 title.Font = Enum.Font.GothamBold
@@ -48,7 +45,7 @@ title.Parent = frame
 -- 1A. Panel KIRI: Daftar RemoteEvent
 -- ============================================
 local leftPanel = Instance.new("Frame")
-leftPanel.Size = UDim2.new(0, 300, 0, 400)
+leftPanel.Size = UDim2.new(0, 320, 0, 400)
 leftPanel.Position = UDim2.new(0, 10, 0, 45)
 leftPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 leftPanel.BorderSizePixel = 0
@@ -84,8 +81,8 @@ leftLayout.Parent = leftScroll
 -- 1B. Panel KANAN: Animasi yang tertangkap
 -- ============================================
 local rightPanel = Instance.new("Frame")
-rightPanel.Size = UDim2.new(0, 300, 0, 400)
-rightPanel.Position = UDim2.new(0, 340, 0, 45)
+rightPanel.Size = UDim2.new(0, 340, 0, 400)
+rightPanel.Position = UDim2.new(0, 350, 0, 45)
 rightPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 rightPanel.BorderSizePixel = 0
 rightPanel.Parent = frame
@@ -140,9 +137,8 @@ local function captureAnimation(animId, animName)
     if not animId or capturedAnims[animId] then return end
     capturedAnims[animId] = { name = animName, id = animId }
     
-    -- Tampilkan di panel kanan
     local item = Instance.new("Frame")
-    item.Size = UDim2.new(1, 0, 0, 35)
+    item.Size = UDim2.new(1, 0, 0, 40)
     item.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     item.BorderSizePixel = 0
     item.Parent = rightScroll
@@ -151,19 +147,21 @@ local function captureAnimation(animId, animName)
     itemCorner.CornerRadius = UDim.new(0, 4)
     itemCorner.Parent = item
     
+    -- Nama animasi
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(0, 120, 1, 0)
+    nameLabel.Size = UDim2.new(0, 100, 1, 0)
     nameLabel.Text = animName or "Animation"
     nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    nameLabel.TextSize = 13
+    nameLabel.TextSize = 12
     nameLabel.Font = Enum.Font.Gotham
     nameLabel.BackgroundTransparency = 1
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.Parent = item
     
+    -- ID singkat
     local idLabel = Instance.new("TextLabel")
-    idLabel.Size = UDim2.new(0, 130, 1, 0)
-    idLabel.Position = UDim2.new(0, 125, 0, 0)
+    idLabel.Size = UDim2.new(0, 110, 1, 0)
+    idLabel.Position = UDim2.new(0, 105, 0, 0)
     idLabel.Text = string.sub(animId, -12)
     idLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     idLabel.TextSize = 11
@@ -172,20 +170,55 @@ local function captureAnimation(animId, animName)
     idLabel.TextXAlignment = Enum.TextXAlignment.Left
     idLabel.Parent = item
     
+    -- Tombol Play (sekali)
+    local playBtn = Instance.new("TextButton")
+    playBtn.Size = UDim2.new(0, 28, 0, 28)
+    playBtn.Position = UDim2.new(0, 220, 0, 6)
+    playBtn.Text = "▶"
+    playBtn.TextSize = 16
+    playBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    playBtn.BorderSizePixel = 0
+    playBtn.Parent = item
+    local pCorner = Instance.new("UICorner"); pCorner.CornerRadius = UDim.new(0, 4); pCorner.Parent = playBtn
+    playBtn.MouseButton1Click:Connect(function() playAnimation(animId, false) end)
+    
+    -- Tombol Loop (berulang)
+    local loopBtn = Instance.new("TextButton")
+    loopBtn.Size = UDim2.new(0, 28, 0, 28)
+    loopBtn.Position = UDim2.new(0, 252, 0, 6)
+    loopBtn.Text = "🔄"
+    loopBtn.TextSize = 16
+    loopBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    loopBtn.BorderSizePixel = 0
+    loopBtn.Parent = item
+    local lCorner = Instance.new("UICorner"); lCorner.CornerRadius = UDim.new(0, 4); lCorner.Parent = loopBtn
+    loopBtn.MouseButton1Click:Connect(function() playAnimation(animId, true) end)
+    
+    -- Tombol Stop semua
+    local stopBtn = Instance.new("TextButton")
+    stopBtn.Size = UDim2.new(0, 28, 0, 28)
+    stopBtn.Position = UDim2.new(0, 284, 0, 6)
+    stopBtn.Text = "⏹"
+    stopBtn.TextSize = 16
+    stopBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    stopBtn.BorderSizePixel = 0
+    stopBtn.Parent = item
+    local sCorner = Instance.new("UICorner"); sCorner.CornerRadius = UDim.new(0, 4); sCorner.Parent = stopBtn
+    stopBtn.MouseButton1Click:Connect(function()
+        stopAllAnimations()
+        notif("⏹ Semua animasi dihentikan")
+    end)
+    
     -- Tombol Copy ID
     local copyBtn = Instance.new("TextButton")
-    copyBtn.Size = UDim2.new(0, 30, 1, -4)
-    copyBtn.Position = UDim2.new(0, 260, 0, 2)
+    copyBtn.Size = UDim2.new(0, 28, 0, 28)
+    copyBtn.Position = UDim2.new(0, 316, 0, 6)
     copyBtn.Text = "📋"
-    copyBtn.TextSize = 14
+    copyBtn.TextSize = 16
     copyBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     copyBtn.BorderSizePixel = 0
     copyBtn.Parent = item
-    
-    local copyCorner = Instance.new("UICorner")
-    copyCorner.CornerRadius = UDim.new(0, 4)
-    copyCorner.Parent = copyBtn
-    
+    local cCorner = Instance.new("UICorner"); cCorner.CornerRadius = UDim.new(0, 4); cCorner.Parent = copyBtn
     copyBtn.MouseButton1Click:Connect(function()
         pcall(function()
             if setclipboard then setclipboard(animId)
@@ -194,56 +227,58 @@ local function captureAnimation(animId, animName)
         notif("📋 ID disalin: " .. string.sub(animId, -12))
     end)
     
-    -- Tombol Play Animasi
-    local playBtn = Instance.new("TextButton")
-    playBtn.Size = UDim2.new(0, 30, 1, -4)
-    playBtn.Position = UDim2.new(0, 230, 0, 2)
-    playBtn.Text = "▶"
-    playBtn.TextSize = 14
-    playBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-    playBtn.BorderSizePixel = 0
-    playBtn.Parent = item
-    
-    local playCorner = Instance.new("UICorner")
-    playCorner.CornerRadius = UDim.new(0, 4)
-    playCorner.Parent = playBtn
-    
-    playBtn.MouseButton1Click:Connect(function()
-        playAnimation(animId)
-    end)
-    
-    -- Update scroll
-    rightScroll.CanvasSize = UDim2.new(0, 0, 0, #capturedAnims * 40 + 10)
+    rightScroll.CanvasSize = UDim2.new(0, 0, 0, #capturedAnims * 45 + 10)
 end
 
 -- ============================================
--- 4. FUNGSI PLAY ANIMASI (Anti-Remote)
+-- 4. FUNGSI PLAY ANIMASI (dengan opsi loop)
 -- ============================================
-local function playAnimation(animId)
+local function playAnimation(animId, loop)
     local char = player.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
     if not hum then return end
+    
+    -- Hentikan animasi yang sama jika sedang berjalan
+    stopAllAnimations()
     
     local anim = Instance.new("Animation")
     anim.AnimationId = animId
     
     local track = hum:LoadAnimation(anim)
     if track then
-        track:Play()
-        notif("▶ Playing: " .. string.sub(animId, -12))
+        if loop then
+            track.Looped = true
+            track:Play()
+            table.insert(activeTracks, track)
+            notif("🔄 Looping: " .. string.sub(animId, -12))
+        else
+            track.Looped = false
+            track:Play()
+            notif("▶ Playing: " .. string.sub(animId, -12))
+        end
     else
         notif("❌ Gagal play animasi")
     end
 end
 
 -- ============================================
--- 5. NOTIFIKASI POPUP
+-- 5. FUNGSI STOP SEMUA ANIMASI
+-- ============================================
+local function stopAllAnimations()
+    for _, track in pairs(activeTracks) do
+        pcall(function() track:Stop() end)
+    end
+    activeTracks = {}
+end
+
+-- ============================================
+-- 6. NOTIFIKASI
 -- ============================================
 local function notif(msg)
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0, 400, 0, 35)
-    label.Position = UDim2.new(0.5, -200, 0.92, 0)
+    label.Size = UDim2.new(0, 450, 0, 35)
+    label.Position = UDim2.new(0.5, -225, 0.94, 0)
     label.Text = msg
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
     label.TextSize = 16
@@ -252,135 +287,95 @@ local function notif(msg)
     label.BackgroundTransparency = 0.3
     label.BorderSizePixel = 0
     label.Parent = frame
-    
-    local notifCorner = Instance.new("UICorner")
-    notifCorner.CornerRadius = UDim.new(0, 6)
-    notifCorner.Parent = label
-    
+    local nc = Instance.new("UICorner"); nc.CornerRadius = UDim.new(0, 6); nc.Parent = label
     game:GetService("Debris"):AddItem(label, 2)
 end
 
 -- ============================================
--- 6. FIRING REMOTE + CAPTURE ANIMASI
+-- 7. FIRING REMOTE + CAPTURE
 -- ============================================
 local function fireRemoteAndCapture(remoteName, remotePath, args)
-    -- 1. Copy nama remote ke clipboard
+    -- Copy remote name
     pcall(function()
         if setclipboard then setclipboard(remoteName)
         elseif toClipboard then toClipboard(remoteName) end
     end)
     notif("📋 Remote disalin: " .. remoteName)
     
-    -- 2. Ambil RemoteEvent
     local remote = remotePath or game:GetService("ReplicatedStorage"):FindFirstChild(remoteName, true)
     if not remote then
-        notif("❌ Remote tidak ditemukan: " .. remoteName)
+        notif("❌ Remote tidak ditemukan")
         return
     end
     
-    -- 3. Fire dengan argument
     local success, err = pcall(function()
-        if args then
-            remote:FireServer(unpack(args))
-        else
-            remote:FireServer()
-        end
+        if args then remote:FireServer(unpack(args))
+        else remote:FireServer() end
     end)
+    if not success then notif("❌ Gagal fire: " .. err) return end
     
-    if not success then
-        notif("❌ Gagal fire: " .. err)
-        return
-    end
-    
-    notif("🔥 Fired: " .. remoteName .. " (menunggu animasi...)")
+    notif("🔥 Fired: " .. remoteName .. " (tunggu animasi...)")
 end
 
 -- ============================================
--- 7. LISTENER ANIMASI (Otomatis capture)
+-- 8. LISTENER ANIMASI (capture otomatis)
 -- ============================================
 hum.AnimationPlayed:Connect(function(track)
     local anim = track.Animation
     if anim and anim.AnimationId then
         local id = anim.AnimationId
         local name = anim.Name or "Animation"
-        
-        -- Capture dan tampilkan
         captureAnimation(id, name)
-        
-        -- Langsung copy ke clipboard (opsional)
+        -- Copy ID ke clipboard
         pcall(function()
             if setclipboard then setclipboard(id)
             elseif toClipboard then toClipboard(id) end
         end)
-        
-        notif("🎬 Animasi tertangkap & disalin: " .. name)
+        notif("🎬 Animasi tertangkap & ID disalin: " .. name)
     end
 end)
 
 -- ============================================
--- 8. TAMPILKAN DAFTAR REMOTE DI GUI
+-- 9. TAMPILKAN DAFTAR REMOTE
 -- ============================================
 local function displayRemoteEvents()
-    -- Bersihkan panel kiri
     for _, child in pairs(leftScroll:GetChildren()) do
-        if child:IsA("TextButton") or child:IsA("Frame") then
-            child:Destroy()
-        end
+        if child:IsA("TextButton") then child:Destroy() end
     end
     
     remoteEventsList = {}
     local rs = game:GetService("ReplicatedStorage")
     if rs then
-        local found = findRemoteEvents(rs)
-        for _, name in pairs(found) do
+        for _, name in pairs(findRemoteEvents(rs)) do
             table.insert(remoteEventsList, name)
         end
     end
     
-    -- Buat tombol untuk setiap remote
     for _, name in pairs(remoteEventsList) do
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1, 0, 0, 30)
         btn.Text = name
-        btn.TextColor3 = Color3.fromRGB(220, 220, 220)
-        btn.TextSize = 14
+        btn.TextColor3 = Color3.fromRGB(220,220,220)
+        btn.TextSize = 13
         btn.Font = Enum.Font.Gotham
-        btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
         btn.BorderSizePixel = 0
         btn.TextXAlignment = Enum.TextXAlignment.Left
         btn.Parent = leftScroll
         
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 4)
-        btnCorner.Parent = btn
+        local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0,4); bc.Parent = btn
+        btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(70,70,70) end)
+        btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
         
-        -- Efek hover
-        btn.MouseEnter:Connect(function()
-            btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-        end)
-        btn.MouseLeave:Connect(function()
-            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        end)
-        
-        -- Saat diklik: fire remote + capture animasi
         btn.MouseButton1Click:Connect(function()
-            -- Cari path remote
             local remote = game:GetService("ReplicatedStorage"):FindFirstChild(name, true)
-            
-            -- Tentukan argument default (bisa disesuaikan)
             local args = nil
-            if name == "M2" or name == "Lunge" then
-                args = { {}, true }
-            elseif name == "TrailEvent" then
-                args = { true }
-            elseif name == "Leap" then
-                args = { true }
-            elseif name == "CarrySurvivorEvent" then
-                args = { game.Players.LocalPlayer.Character }
-            elseif name == "ActivatePower" or name == "DeactivatePower" then
-                args = { true }
+            if name == "M2" or name == "Lunge" then args = { {}, true }
+            elseif name == "TrailEvent" then args = { true }
+            elseif name == "Leap" then args = { true }
+            elseif name == "CarrySurvivorEvent" then args = { game.Players.LocalPlayer.Character }
+            elseif name == "ActivatePower" or name == "DeactivatePower" then args = { true }
             end
-            
             fireRemoteAndCapture(name, remote, args)
         end)
     end
@@ -389,59 +384,36 @@ local function displayRemoteEvents()
 end
 
 -- ============================================
--- 9. TOMBOL REFRESH
+-- 10. TOMBOL REFRESH & TUTUP
 -- ============================================
 local refreshBtn = Instance.new("TextButton")
 refreshBtn.Size = UDim2.new(0, 150, 0, 35)
-refreshBtn.Position = UDim2.new(0.5, -75, 0.92, 0)
+refreshBtn.Position = UDim2.new(0.5, -75, 0.94, 0)
 refreshBtn.Text = "🔄 Refresh List"
-refreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+refreshBtn.TextColor3 = Color3.fromRGB(255,255,255)
 refreshBtn.TextSize = 16
 refreshBtn.Font = Enum.Font.GothamBold
-refreshBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+refreshBtn.BackgroundColor3 = Color3.fromRGB(0,120,255)
 refreshBtn.BorderSizePixel = 0
 refreshBtn.Parent = frame
-
-local refreshCorner = Instance.new("UICorner")
-refreshCorner.CornerRadius = UDim.new(0, 6)
-refreshCorner.Parent = refreshBtn
-
+local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0,6); rc.Parent = refreshBtn
 refreshBtn.MouseButton1Click:Connect(displayRemoteEvents)
 
--- ============================================
--- 10. TOMBOL TUTUP
--- ============================================
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 80, 0, 35)
-closeBtn.Position = UDim2.new(0.9, 0, 0.92, 0)
+closeBtn.Position = UDim2.new(0.9, 0, 0.94, 0)
 closeBtn.Text = "✖ Tutup"
-closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
 closeBtn.TextSize = 14
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
 closeBtn.BorderSizePixel = 0
 closeBtn.Parent = frame
-
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 6)
-closeCorner.Parent = closeBtn
-
-closeBtn.MouseButton1Click:Connect(function()
-    screenGui.Enabled = not screenGui.Enabled
-end)
+local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0,6); cc.Parent = closeBtn
+closeBtn.MouseButton1Click:Connect(function() screenGui.Enabled = not screenGui.Enabled end)
 
 -- ============================================
 -- 11. JALANKAN
 -- ============================================
 displayRemoteEvents()
-notif("✅ Siap! Klik skill → copy remote + capture animasi")
-
--- Buat label di panel kanan kosong
-local emptyLabel = Instance.new("TextLabel")
-emptyLabel.Size = UDim2.new(1, 0, 0, 30)
-emptyLabel.Text = "Belum ada animasi tertangkap"
-emptyLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-emptyLabel.TextSize = 14
-emptyLabel.Font = Enum.Font.Gotham
-emptyLabel.BackgroundTransparency = 1
-emptyLabel.Parent = rightScroll
+notif("✅ Siap! Klik skill → copy remote + capture animasi (bisa loop)")
