@@ -1,9 +1,8 @@
 --[[
-    🔥 POV LOCK – MODE LUNGE ONLY (UI TETAP MUNCUL)
-    - UI dibuat pertama kali, tidak terganggu error lain
-    - Target dipilih dari panel, indikator cyan
-    - Saat animasi lunge dimulai, kamera lock + prediksi
-    - Semua fungsi karakter dibungkus pcall agar aman
+    🔥 POV LOCK – MODE LUNGE + REMOTE TRIGGER (PREDIKSI)
+    - Target dipilih dari panel (indikator cyan)
+    - Saat animasi lunge atau remote Leap/TrailEvent dipanggil → lock + prediksi
+    - Kamera lepas saat animasi selesai
 ]]
 
 local Players = game:GetService("Players")
@@ -17,7 +16,7 @@ local camera = workspace.CurrentCamera
 -- ===== KONFIGURASI =====
 local RADIUS = 100
 local PREDICT_TIME = 0.3
-local ANIM_KEYWORDS = {"lunge", "lungehold", "stab", "dash"}
+local ANIM_KEYWORDS = {"lunge", "lungehold", "stab", "dash", "leap"}  -- tambah "leap"
 
 -- ===== VARIABEL =====
 local isEnabled = true
@@ -27,31 +26,33 @@ local targetName = ""
 local isLunging = false
 local lastPositions = {}
 local lastTime = 0
+local lockUntil = 0
+local LOCK_DURATION = 0.8
 
 -- =====================================================
---  1. UI DIBUAT PALING AWAL (BIAR PASTI MUNCUL)
+--  1. UI (PASTI MUNCUL)
 -- =====================================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "POVLockUI"
 screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.ResetOnSpawn = false
 
--- Tombol ON/OFF (kiri atas)
+-- Tombol ON/OFF
 local toggleFrame = Instance.new("Frame")
 toggleFrame.Size = UDim2.new(0, 120, 0, 40)
 toggleFrame.Position = UDim2.new(0, 10, 0, 10)
-toggleFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggleFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 toggleFrame.BackgroundTransparency = 0.2
 toggleFrame.BorderSizePixel = 0
 toggleFrame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
+corner.CornerRadius = UDim.new(0,8)
 corner.Parent = toggleFrame
 
 local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(1, 0, 1, 0)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+toggleBtn.Size = UDim2.new(1,0,1,0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0,170,255)
 toggleBtn.Text = "🔒 ON"
 toggleBtn.TextColor3 = Color3.new(1,1,1)
 toggleBtn.TextSize = 18
@@ -60,20 +61,20 @@ toggleBtn.BorderSizePixel = 0
 toggleBtn.Parent = toggleFrame
 
 local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.CornerRadius = UDim.new(0,8)
 btnCorner.Parent = toggleBtn
 
 toggleBtn.MouseButton1Click:Connect(function()
     isEnabled = not isEnabled
     toggleBtn.Text = isEnabled and "🔒 ON" or "🔓 OFF"
-    toggleBtn.BackgroundColor3 = isEnabled and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(200, 50, 50)
+    toggleBtn.BackgroundColor3 = isEnabled and Color3.fromRGB(0,170,255) or Color3.fromRGB(200,50,50)
     if not isEnabled then updateIndicator(false) end
 end)
 
--- Indikator lingkaran tengah
+-- Indikator lingkaran
 local indicator = Instance.new("Frame")
-indicator.Size = UDim2.new(0, 20, 0, 20)
-indicator.Position = UDim2.new(0.5, -10, 0.5, -10)
+indicator.Size = UDim2.new(0,20,0,20)
+indicator.Position = UDim2.new(0.5,-10,0.5,-10)
 indicator.BackgroundColor3 = Color3.fromRGB(255,0,0)
 indicator.BackgroundTransparency = 0.5
 indicator.BorderSizePixel = 0
@@ -90,21 +91,21 @@ function updateIndicator(locked)
         return
     end
     if locked then
-        indicator.BackgroundColor3 = Color3.fromRGB(0,255,0)   -- hijau (lock aktif)
+        indicator.BackgroundColor3 = Color3.fromRGB(0,255,0)   -- hijau
         indicator.BackgroundTransparency = 0.3
     elseif selectedTarget then
-        indicator.BackgroundColor3 = Color3.fromRGB(0,255,255) -- cyan (target terpilih)
+        indicator.BackgroundColor3 = Color3.fromRGB(0,255,255) -- cyan
         indicator.BackgroundTransparency = 0.4
     else
-        indicator.BackgroundColor3 = Color3.fromRGB(255,0,0)   -- merah
+        indicator.BackgroundColor3 = Color3.fromRGB(255,0,0)
         indicator.BackgroundTransparency = 0.5
     end
 end
 
--- Panel daftar target (kanan atas)
+-- Panel target
 local targetPanel = Instance.new("Frame")
-targetPanel.Size = UDim2.new(0, 200, 0, 300)
-targetPanel.Position = UDim2.new(1, -210, 0, 10)
+targetPanel.Size = UDim2.new(0,200,0,300)
+targetPanel.Position = UDim2.new(1,-210,0,10)
 targetPanel.BackgroundColor3 = Color3.fromRGB(20,20,30)
 targetPanel.BackgroundTransparency = 0.3
 targetPanel.BorderSizePixel = 0
@@ -139,6 +140,7 @@ autoBtn.TextSize = 12
 autoBtn.Font = Enum.Font.GothamBold
 autoBtn.BorderSizePixel = 0
 autoBtn.Parent = targetPanel
+
 local autoCorner = Instance.new("UICorner")
 autoCorner.CornerRadius = UDim.new(0,4)
 autoCorner.Parent = autoBtn
@@ -165,7 +167,7 @@ uiList.Padding = UDim.new(0,2)
 uiList.Parent = scrollFrame
 
 -- =====================================================
---  2. FUNGSI UTAMA (TARGET, PREDIKSI, DLL)
+--  2. FUNGSI UTAMA
 -- =====================================================
 local function getTargetsInRadius()
     local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -276,8 +278,33 @@ function updateTargetList()
 end
 
 -- =====================================================
---  3. DETEKSI ANIMASI (DIBUNGKUS PCALL AGAR AMAN)
+--  3. TRIGGER LOCK (ANIMASI + REMOTE)
 -- =====================================================
+local function triggerLock()
+    if not isEnabled then return end
+    -- Jika belum ada target, ambil terdekat
+    if not selectedTarget or not selectedTarget.Parent then
+        local nearest = getNearestTarget()
+        if nearest then
+            selectedTarget = nearest
+            targetName = nearest.Parent and nearest.Parent.Name or ""
+            updateTargetList()
+        end
+    end
+    if selectedTarget and selectedTarget.Parent then
+        isLunging = true
+        lockUntil = tick() + LOCK_DURATION
+        updateIndicator(true)
+        lockToTarget(selectedTarget)
+    end
+end
+
+local function releaseLock()
+    isLunging = false
+    updateIndicator(false)
+end
+
+-- Deteksi animasi
 local function setupAnimationDetection()
     if not character then return end
     local humanoid = character:FindFirstChild("Humanoid")
@@ -303,43 +330,59 @@ local function setupAnimationDetection()
 
     animator.AnimationTrackAdded:Connect(function(track)
         if isLungeAnim(track) then
-            isLunging = true
-            updateIndicator(true)
-            if not selectedTarget or not selectedTarget.Parent then
-                local nearest = getNearestTarget()
-                if nearest then
-                    selectedTarget = nearest
-                    targetName = nearest.Parent and nearest.Parent.Name or ""
-                    updateTargetList()
-                end
-            end
+            print("[POV] Animasi lunge terdeteksi: " .. (track.Name or ""))
+            triggerLock()
         end
     end)
 
     animator.AnimationTrackRemoved:Connect(function(track)
         if isLungeAnim(track) then
-            isLunging = false
-            updateIndicator(false)
+            print("[POV] Animasi lunge selesai: " .. (track.Name or ""))
+            releaseLock()
         end
     end)
 
-    -- Cek animasi yang sudah berjalan
+    -- Cek animasi yang sedang berjalan
     for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
         if isLungeAnim(track) then
-            isLunging = true
-            updateIndicator(true)
-            if not selectedTarget or not selectedTarget.Parent then
-                local nearest = getNearestTarget()
-                if nearest then
-                    selectedTarget = nearest
-                    targetName = nearest.Parent and nearest.Parent.Name or ""
-                    updateTargetList()
-                end
-            end
+            print("[POV] Animasi lunge sedang berjalan: " .. (track.Name or ""))
+            triggerLock()
             break
         end
     end
 end
+
+-- Hook remote Leap dan TrailEvent
+local function hookRemote(remotePath, remoteName)
+    local remote = ReplicatedStorage
+    for _, part in ipairs(remotePath) do
+        remote = remote and remote:FindFirstChild(part)
+        if not remote then break end
+    end
+    if not remote then
+        warn("[POV] Remote " .. remoteName .. " tidak ditemukan")
+        return
+    end
+    if remote:IsA("RemoteEvent") then
+        local original = remote.FireServer
+        remote.FireServer = function(self, ...)
+            print("[POV] Remote " .. remoteName .. " dipanggil, trigger lock")
+            triggerLock()
+            -- Set timer untuk melepas lock jika tidak ada animasi yang menahan
+            task.delay(LOCK_DURATION, function()
+                if isLunging and tick() - lockUntil > LOCK_DURATION then
+                    releaseLock()
+                end
+            end)
+            return original(self, ...)
+        end
+        print("[POV] Hook remote: " .. remoteName)
+    end
+end
+
+-- Pasang hook untuk Leap dan TrailEvent
+hookRemote({"Remotes", "Killers", "Hidden", "Leap"}, "Leap")
+hookRemote({"Remotes", "Attacks", "TrailEvent"}, "TrailEvent")
 
 -- =====================================================
 --  4. INIT & LOOP
@@ -352,11 +395,10 @@ local function initCharacter(newChar)
     lastPositions = {}
     lastTime = 0
     pcall(setupAnimationDetection)
-    updateTargetList()
-    updateIndicator(false)
+    pcall(updateTargetList)
+    pcall(updateIndicator, false)
 end
 
--- Event karakter
 if character then
     pcall(initCharacter, character)
 else
@@ -365,26 +407,21 @@ else
     end)
 end
 
--- Loop utama (update kamera saat lunging)
+-- Loop update kamera
 RunService.Heartbeat:Connect(function()
-    if not isEnabled or not isLunging then return end
-    if selectedTarget and selectedTarget.Parent then
+    if not isEnabled then return end
+    if isLunging and selectedTarget and selectedTarget.Parent then
         pcall(lockToTarget, selectedTarget)
     end
 end)
 
--- Update daftar target saat ada pemain baru/keluar
-Players.PlayerAdded:Connect(function()
-    pcall(updateTargetList)
-end)
-Players.PlayerRemoving:Connect(function()
-    pcall(updateTargetList)
-end)
+-- Update list saat pemain berubah
+Players.PlayerAdded:Connect(pcall(updateTargetList))
+Players.PlayerRemoving:Connect(pcall(updateTargetList))
 
--- Inisialisasi pertama
 pcall(updateTargetList)
 pcall(updateIndicator, false)
 
-print("✅ POV Lock – Mode Lunge Only siap! UI harus muncul.")
-print("📌 Klik target di panel kanan → indikator cyan.")
-print("📌 Saat lunge → indikator hijau, kamera lock + prediksi.")
+print("✅ POV Lock siap! Trigger: animasi lunge + remote Leap/TrailEvent.")
+print("📌 Pilih target di panel kanan (cyan).")
+print("📌 Saat skill dipakai → hijau, kamera lock + prediksi.")
