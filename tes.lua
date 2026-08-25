@@ -1,9 +1,9 @@
 --[[
 =========================================================================
-    A2 HUB V10.0 - STABLE DOUBLE FIRE SYNC (NO STUCK / NO FREEZE)
-    - Peluru asli keluar normal, senjata tidak hilang / tangan tidak kosong
-    - Gerakan lari & jongkok 100% bebas leluasa (Tanpa paksaan kamera/kaku)
-    - Sinkronisasi peluru akurat menggunakan teknik Double Fire Sync
+    A2 HUB V11.0 - CLEAN & STABLE COMBAT (FINAL FIX)
+    - 100% Aman: Tangan tidak kosong, senjata normal, lari & jongkok lancar
+    - Murni Smooth Camera Directional Lock & Independent Laser Tracer
+    - Compact FOV Circle (80 - 120) & Millisecond Prediction
 =========================================================================
 ]]
 
@@ -41,15 +41,14 @@ local Config = {
     AimPart        = "Head",    -- "Head" atau "Body"
     
     LaserEnabled   = true,      -- Laser penunjuk independen
+    CamLockEnabled = false,     -- Nyalakan jika ingin kamera ikut mengarah ke target
     Prediction     = true,      -- Prediksi milidetik pergerakan
-    DoubleFireSync = true,      -- Sinkronisasi peluru pas saat menembak
     
     FOVRadius      = 100,       -- Ukuran FOV kompak (80 - 120)
     MaxDist        = 800,       
 }
 
 local CurrentTarget = nil
-local isFiringSync  = false
 
 -- ==================== VISUAL: LASER TRACER ====================
 local LaserPart = Instance.new("Part")
@@ -65,10 +64,10 @@ LaserPart.Parent = Workspace
 
 -- ==================== VISUAL: FOV CIRCLE ====================
 local guiParent = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
-pcall(function() if guiParent:FindFirstChild("A2HubV10") then guiParent.A2HubV10:Destroy() end end)
+pcall(function() if guiParent:FindFirstChild("A2HubV11") then guiParent.A2HubV11:Destroy() end end)
 
 local ScreenGui = Instance.new("ScreenGui", guiParent)
-ScreenGui.Name = "A2HubV10"
+ScreenGui.Name = "A2HubV11"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 
@@ -165,48 +164,7 @@ local function GetEmperorGun()
     return arm:FindFirstChild("EmperorGun")
 end
 
--- ==================== SINKRONISASI DOUBLE FIRE SYNC (AMAN & STABIL) ====================
-local fireRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Items"):WaitForChild("Twist of Fate"):WaitForChild("Fire")
-
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-
-    -- Memantau saat kamu menekan tombol tembak asli game tanpa merusak data aslinya
-    if Config.DoubleFireSync and method == "FireServer" and self == fireRemote and not isFiringSync then
-        if CurrentTarget and IsAlive(CurrentTarget.char) then
-            isFiringSync = true
-            task.spawn(function()
-                local part = GetTargetPart(CurrentTarget.char)
-                local char = LocalPlayer.Character
-                if part and char and char:FindFirstChild("Head") then
-                    local tool = char:FindFirstChild("Twist of Fate")
-                    local predictedPos = GetPredictPos(CurrentTarget.char, part)
-                    local gun = GetEmperorGun()
-                    local from = (gun and gun.IsA and gun:IsA("BasePart") and gun.Position) or char.Head.Position
-                    
-                    if tool then
-                        local newDir = (predictedPos - from).Unit
-                        local customArgs = {
-                            tool,
-                            vector.create(newDir.X, newDir.Y, newDir.Z)
-                        }
-                        pcall(function()
-                            fireRemote:FireServer(unpack(customArgs))
-                        end)
-                    end
-                end
-                task.wait(0.08)
-                isFiringSync = false
-            end)
-        end
-    end
-
-    return oldNamecall(self, unpack(args))
-end)
-
--- ==================== MAIN RENDER LOOP (BEBAS TANPA PAKSAAN KAMERA) ====================
+-- ==================== MAIN RENDER LOOP ====================
 RunService.RenderStepped:Connect(function()
     FOVFrame.Size = UDim2.new(0, Config.FOVRadius * 2, 0, Config.FOVRadius * 2)
 
@@ -217,7 +175,7 @@ RunService.RenderStepped:Connect(function()
         if part then
             local predictedPos = GetPredictPos(CurrentTarget.char, part)
 
-            -- Laser Tracer (Hanya menampilkan garis visual laser secara independen)
+            -- 1. Laser Tracer Indepeden
             if Config.LaserEnabled then
                 local gun = GetEmperorGun()
                 local from = (gun and gun.Position) or Camera.CFrame.Position
@@ -228,15 +186,19 @@ RunService.RenderStepped:Connect(function()
             else
                 LaserPart.Transparency = 1
             end
-            
-            -- Catatan: Perintah Camera Lock dihapus total di sini supaya karakter kamu bisa lari, jongkok, dan bergerak 100% bebas tanpa kaku!
+
+            -- 2. Smooth Camera Lock (Opsional, sangat ringan dan tidak bikin kaku/jongkok macet)
+            if Config.CamLockEnabled then
+                local targetCF = CFrame.new(Camera.CFrame.Position, predictedPos)
+                Camera.CFrame = Camera.CFrame:Lerp(targetCF, 0.1)
+            end
         end
     else
         LaserPart.Transparency = 1
     end
 end)
 
--- ==================== UI INTERFACE (A2 HUB V10) ====================
+-- ==================== UI INTERFACE (A2 HUB V11) ====================
 local Bubble = Instance.new("ImageButton", ScreenGui)
 Bubble.Size = UDim2.new(0, 50, 0, 50)
 Bubble.Position = UDim2.new(0, 15, 0.25, 0)
@@ -247,8 +209,8 @@ Bubble.Draggable = true
 Instance.new("UICorner", Bubble).CornerRadius = UDim.new(1, 0)
 
 local Window = Instance.new("Frame", ScreenGui)
-Window.Size = UDim2.new(0, 440, 0, 340)
-Window.Position = UDim2.new(0.5, -220, 0.5, -170)
+Window.Size = UDim2.new(0, 440, 0, 360)
+Window.Position = UDim2.new(0.5, -220, 0.5, -180)
 Window.BackgroundColor3 = THEME.Bg
 Window.Active = true
 Window.Draggable = true
@@ -265,7 +227,7 @@ local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, -40, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "A2 HUB V10.0 — STABLE SYNC"
+Title.Text = "A2 HUB V11.0 — CLEAN STABLE"
 Title.TextColor3 = THEME.White
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 12
@@ -403,7 +365,7 @@ end)
 
 -- Toggles UI
 AddToggle("Laser Tracer Active", Config.LaserEnabled, function(v) Config.LaserEnabled = v end)
+AddToggle("Smart Camera Lock (CamLock)", Config.CamLockEnabled, function(v) Config.CamLockEnabled = v end)
 AddToggle("Millisecond Prediction", Config.Prediction, function(v) Config.Prediction = v end)
-AddToggle("Synced Double Fire (Auto Fire)", Config.DoubleFireSync, function(v) Config.DoubleFireSync = v end)
 
-print("✅ A2 HUB V10.0 Loaded Successfully!")
+print("✅ A2 HUB V11.0 Loaded Successfully!")
