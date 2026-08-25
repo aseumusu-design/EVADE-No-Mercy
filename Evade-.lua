@@ -1,8 +1,8 @@
 --[[
-    🔥 POV LOCK PRO + AUTO FIND REMOTE (AMAN)
-    - Mencari semua remote dengan kata kunci tertentu
-    - Tombol ON/OFF + indikator lingkaran
-    - Lock saat gerak & skill
+    🔥 POV LOCK PRO + AUTO FIND REMOTE (AMAN TOTAL)
+    - Mencari remote dengan keyword: Hidden, Stab, M2, Leap
+    - Pengecekan FireServer/InvokeServer dengan pcall
+    - UI ON/OFF + indikator lingkaran
 ]]
 
 local Players = game:GetService("Players")
@@ -17,7 +17,7 @@ local camera = workspace.CurrentCamera
 local RADIUS = 100
 local LOCK_DURATION = 0.8
 local SKILL_KEY = Enum.KeyCode.E
-local KEYWORDS = {"Hidden", "Stab", "M2", "Leap", "Skill"}  -- tambah sesuai kebutuhan
+local KEYWORDS = {"Hidden", "Stab", "M2", "Leap"}  -- tanpa "Skill"
 
 -- ===== VARIABEL =====
 local isEnabled = true
@@ -60,12 +60,17 @@ local function lockToTarget(target)
     return false
 end
 
--- ===== HOOK REMOTE =====
+-- ===== HOOK REMOTE (DENGAN PENGECEKAN AMAN) =====
 local function hookRemote(remote)
     if not remote then return end
 
     if remote:IsA("RemoteEvent") then
-        local original = remote.FireServer
+        local success, original = pcall(function() return remote.FireServer end)
+        if not success or type(original) ~= "function" then
+            warn("⚠️ Skip RemoteEvent " .. remote.Name .. " (FireServer tidak valid)")
+            return
+        end
+
         remote.FireServer = function(self, ...)
             if isEnabled then
                 local target = getNearestTarget()
@@ -77,8 +82,14 @@ local function hookRemote(remote)
             return original(self, ...)
         end
         print("✅ Hook RemoteEvent: " .. remote.Name)
+
     elseif remote:IsA("RemoteFunction") then
-        local original = remote.InvokeServer
+        local success, original = pcall(function() return remote.InvokeServer end)
+        if not success or type(original) ~= "function" then
+            warn("⚠️ Skip RemoteFunction " .. remote.Name .. " (InvokeServer tidak valid)")
+            return
+        end
+
         remote.InvokeServer = function(self, ...)
             if isEnabled then
                 local target = getNearestTarget()
@@ -93,10 +104,9 @@ local function hookRemote(remote)
     end
 end
 
--- ===== CARI & HOOK SEMUA REMOTE DENGAN KATA KUNCI (REKURSIF AMAN) =====
+-- ===== CARI & HOOK =====
 local function findAndHookRemotes(parent, keywords)
-    if not parent then return end  -- CEK NIL!
-
+    if not parent then return end
     for _, child in ipairs(parent:GetChildren()) do
         if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
             for _, kw in ipairs(keywords) do
@@ -106,19 +116,14 @@ local function findAndHookRemotes(parent, keywords)
                 end
             end
         elseif child:IsA("Folder") or child:IsA("Model") or child:IsA("Tool") then
-            -- Rekursi ke child, tapi pastikan child tidak nil
             findAndHookRemotes(child, keywords)
         end
     end
 end
 
--- Jalankan pencarian (gunakan pcall untuk aman)
-local success, err = pcall(function()
+pcall(function()
     findAndHookRemotes(ReplicatedStorage, KEYWORDS)
 end)
-if not success then
-    warn("Gagal mencari remote: " .. tostring(err))
-end
 
 -- ===== LOOP UTAMA =====
 RunService.Heartbeat:Connect(function()
@@ -126,7 +131,6 @@ RunService.Heartbeat:Connect(function()
         character = player.Character
         if not character then return end
     end
-
     local humanoid = character:FindFirstChild("Humanoid")
     if not humanoid then return end
 
@@ -152,7 +156,6 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "POVLockUI"
 screenGui.Parent = player.PlayerGui
 
--- Tombol ON/OFF
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0, 120, 0, 40)
 frame.Position = UDim2.new(0, 10, 0, 10)
@@ -185,7 +188,6 @@ toggleBtn.MouseButton1Click:Connect(function()
     toggleBtn.BackgroundColor3 = isEnabled and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(200, 50, 50)
 end)
 
--- Indikator lingkaran tengah
 local indicator = Instance.new("Frame")
 indicator.Size = UDim2.new(0, 20, 0, 20)
 indicator.Position = UDim2.new(0.5, -10, 0.5, -10)
