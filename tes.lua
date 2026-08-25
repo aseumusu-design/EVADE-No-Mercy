@@ -1,71 +1,35 @@
 --[[
 =========================================================================
-    A2 HUB V12.1 - ULTIMATE SILENT AIM & FREE MOVEMENT
-    - 100% Aman: Lari, jongkok, dan tombol game normal tanpa freeze/kaku
-    - Peluru otomatis mengarah/mengenai target saat kamu menembak (Silent Aim)
-    - Senjata aman di tangan, tidak kosong, dan bebas fire terus-menerus
+    A2 HUB - SIMPLE AIMBOT EDITION (UI LIBRARY SIMPEL)
+    - Bersih, ringan, tidak bikin kaku / tangan kosong
+    - Auto Aim / Camera Lock mulus saat target masuk FOV
 =========================================================================
 ]]
 
 local Players             = game:GetService("Players")
 local RunService          = game:GetService("RunService")
 local Workspace           = game:GetService("Workspace")
-local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local CoreGui             = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera      = Workspace.CurrentCamera
 
--- ==================== THEME CONFIG ====================
-local THEME = {
-    Bg       = Color3.fromRGB(12, 12, 18),
-    Dark     = Color3.fromRGB(18, 18, 26),
-    Panel    = Color3.fromRGB(24, 24, 35),
-    Accent   = Color3.fromRGB(138, 43, 226),
-    Green    = Color3.fromRGB(46, 204, 113),
-    Red      = Color3.fromRGB(231, 76, 60),
-    White    = Color3.fromRGB(255, 255, 255),
-    TextDim  = Color3.fromRGB(150, 150, 170),
-}
-
-local TARGET_COLORS = {
-    Killer   = Color3.fromRGB(255, 60, 60),
-    Survivor = Color3.fromRGB(52, 152, 219),
-    Zombie   = Color3.fromRGB(46, 204, 113),
-    All      = Color3.fromRGB(241, 196, 15),
-}
-
--- ==================== CONFIG ====================
 local Config = {
-    TargetType   = "Killer",  -- Killer, Survivor, Zombie, All
-    AimPart      = "Head",    -- "Head" atau "Body"
-    LaserEnabled = true,      -- Laser visual penunjuk arah
-    SilentAim    = true,      -- Belokan peluru otomatis ke target saat menembak
-    Prediction   = true,      -- Prediksi pergerakan milidetik
-    FOVRadius    = 100,       -- Ukuran lingkaran FOV (80 - 120)
-    MaxDist      = 800,       
+    AimbotEnabled = true,
+    TargetType    = "Killer", -- Killer, Survivor, Zombie, All
+    AimPart       = "Head",   -- Head atau HumanoidRootPart
+    FOVRadius     = 100,      -- Ukuran lingkaran FOV
+    Smoothness    = 0.2,      -- Kehalusan Aimbot (Semakin kecil semakin halus)
 }
 
 local CurrentTarget = nil
 
--- ==================== VISUAL: LASER TRACER ====================
-local LaserPart = Instance.new("Part")
-LaserPart.Name = "A2_LaserTracer"
-LaserPart.Anchored = true
-LaserPart.CanCollide = false
-LaserPart.CanQuery = false
-LaserPart.CanTouch = false
-LaserPart.Material = Enum.Material.Neon
-LaserPart.Size = Vector3.new(0.1, 0.1, 1)
-LaserPart.Transparency = 1
-LaserPart.Parent = Workspace
-
--- ==================== VISUAL: FOV CIRCLE ====================
+-- ==================== FOV CIRCLE VISUAL ====================
 local guiParent = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
-pcall(function() if guiParent:FindFirstChild("A2HubV121") then guiParent.A2HubV121:Destroy() end end)
+pcall(function() if guiParent:FindFirstChild("A2SimpleAim") then guiParent.A2SimpleAim:Destroy() end end)
 
 local ScreenGui = Instance.new("ScreenGui", guiParent)
-ScreenGui.Name = "A2HubV121"
+ScreenGui.Name = "A2SimpleAim"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 
@@ -82,7 +46,7 @@ UICornerFOV.CornerRadius = UDim.new(1, 0)
 local UIStrokeFOV = Instance.new("UIStroke", FOVFrame)
 UIStrokeFOV.Color = Color3.fromRGB(255, 255, 255)
 UIStrokeFOV.Thickness = 1.5
-UIStrokeFOV.Transparency = 0.3
+UIStrokeFOV.Transparency = 0.4
 
 -- ==================== UTILS ====================
 local function ClassifyTarget(char, plr)
@@ -110,9 +74,8 @@ local function GetTargetPart(char)
     end
 end
 
-local function FindSmartTarget()
-    local origin = Camera.CFrame.Position
-    local best, bestScore = nil, math.huge
+local function FindClosestTarget()
+    local best, bestDist = nil, math.huge
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
     for _, p in ipairs(Players:GetPlayers()) do
@@ -124,12 +87,9 @@ local function FindSmartTarget()
                     local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                     if onScreen then
                         local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                        if mouseDist <= Config.FOVRadius then
-                            local dist = (part.Position - origin).Magnitude
-                            if dist <= Config.MaxDist and dist < bestScore then
-                                best = { char = p.Character, kind = kind, part = part }
-                                bestScore = dist
-                            end
+                        if mouseDist <= Config.FOVRadius and mouseDist < bestDist then
+                            best = part
+                            bestDist = mouseDist
                         end
                     end
                 end
@@ -139,172 +99,81 @@ local function FindSmartTarget()
     return best
 end
 
-local function GetPredictPos(char, part)
-    if not part then return nil end
-    if not Config.Prediction then return part.Position end
-    
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if hrp and hrp.AssemblyLinearVelocity then
-        local distance = (Camera.CFrame.Position - part.Position).Magnitude
-        local travelTime = distance / 1500 
-        return part.Position + (hrp.AssemblyLinearVelocity * travelTime)
-    end
-    return part.Position
-end
-
-local function GetEmperorGun()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local tof = char:FindFirstChild("Twist of Fate")
-    if not tof then return nil end
-    local arm = tof:FindFirstChild("Right Arm")
-    if not arm then return nil end
-    return arm:FindFirstChild("EmperorGun")
-end
-
--- ==================== SILENT AIM HOOK (AMAN, PELURU BELOK KE TARGET TANPA MERUSAK TOOL) ====================
-local fireRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Items"):WaitForChild("Twist of Fate"):WaitForChild("Fire")
-
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-
-    if Config.SilentAim and method == "FireServer" and self == fireRemote then
-        if CurrentTarget and IsAlive(CurrentTarget.char) then
-            local part = GetTargetPart(CurrentTarget.char)
-            if part then
-                local predictedPos = GetPredictPos(CurrentTarget.char, part)
-                local gun = GetEmperorGun()
-                local from = (gun and gun.IsA and gun:IsA("BasePart") and gun.Position) or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") and LocalPlayer.Character.Head.Position) or Camera.CFrame.Position
-                local newDir = (predictedPos - from).Unit
-                
-                -- Hanya mengganti arah vektor tujuan peluru pada argumen posisi (argumen ke-2) tanpa merusak referensi tool
-                if typeof(args[2]) == "Vector3" then
-                    args[2] = Vector3.new(newDir.X, newDir.Y, newDir.Z)
-                elseif type(args[2]) == "userdata" and tostring(args[2]):find("vector") then
-                    pcall(function()
-                        args[2] = vector.create(newDir.X, newDir.Y, newDir.Z)
-                    end)
-                end
-            end
-        end
-    end
-
-    return oldNamecall(self, unpack(args))
-end)
-
--- ==================== MAIN LOOP (BEBAS LARI & JONGKOK) ====================
+-- ==================== MAIN AIMBOT LOOP ====================
 RunService.RenderStepped:Connect(function()
     FOVFrame.Size = UDim2.new(0, Config.FOVRadius * 2, 0, Config.FOVRadius * 2)
-    CurrentTarget = FindSmartTarget()
 
-    if Config.LaserEnabled and CurrentTarget and IsAlive(CurrentTarget.char) then
-        local part = GetTargetPart(CurrentTarget.char)
-        if part then
-            local predictedPos = GetPredictPos(CurrentTarget.char, part)
-            local gun = GetEmperorGun()
-            local from = (gun and gun.Position) or Camera.CFrame.Position
-            LaserPart.Transparency = 0.2
-            LaserPart.Color = TARGET_COLORS[CurrentTarget.kind] or THEME.White
-            LaserPart.CFrame = CFrame.lookAt(from, predictedPos) * CFrame.new(0, 0, -(predictedPos - from).Magnitude / 2)
-            LaserPart.Size = Vector3.new(0.09, 0.09, (predictedPos - from).Magnitude)
-        else
-            LaserPart.Transparency = 1
+    if Config.AimbotEnabled then
+        CurrentTarget = FindClosestTarget()
+        if CurrentTarget then
+            local targetCF = CFrame.new(Camera.CFrame.Position, CurrentTarget.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Smoothness)
         end
-    else
-        LaserPart.Transparency = 1
     end
 end)
 
--- ==================== SIMPLE UI ====================
-local Bubble = Instance.new("ImageButton", ScreenGui)
-Bubble.Size = UDim2.new(0, 50, 0, 50)
-Bubble.Position = UDim2.new(0, 15, 0.25, 0)
-Bubble.BackgroundColor3 = THEME.Dark
-Bubble.Image = "rbxassetid://126404877070566"
-Bubble.Active = true
-Bubble.Draggable = true
-Instance.new("UICorner", Bubble).CornerRadius = UDim.new(1, 0)
-
+-- ==================== SIMPLE UI (SIMPEL & ELEGAN) ====================
 local Window = Instance.new("Frame", ScreenGui)
-Window.Size = UDim2.new(0, 420, 0, 340)
-Window.Position = UDim2.new(0.5, -210, 0.5, -170)
-Window.BackgroundColor3 = THEME.Bg
+Window.Size = UDim2.new(0, 220, 0, 150)
+Window.Position = UDim2.new(0.05, 0, 0.3, 0)
+Window.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
 Window.Active = true
 Window.Draggable = true
-Instance.new("UICorner", Window).CornerRadius = UDim.new(0, 12)
+Instance.new("UICorner", Window).CornerRadius = UDim.new(0, 8)
 
-Bubble.MouseButton1Click:Connect(function() Window.Visible = not Window.Visible end)
-
-local Header = Instance.new("Frame", Window)
-Header.Size = UDim2.new(1, 0, 0, 38)
-Header.BackgroundColor3 = THEME.Dark
-Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
-
-local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(1, -40, 1, 0)
-Title.Position = UDim2.new(0, 15, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "A2 HUB V12.1 — SILENT AIM"
-Title.TextColor3 = THEME.White
+local Title = Instance.new("TextLabel", Window)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+Title.Text = " A2 SIMPLE AIMBOT"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 12
 Title.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
 
-local CloseBtn = Instance.new("TextButton", Header)
-CloseBtn.Size = UDim2.new(0, 24, 0, 24)
-CloseBtn.Position = UDim2.new(1, -30, 0.5, -12)
-CloseBtn.BackgroundColor3 = THEME.Red
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = THEME.White
-CloseBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
-CloseBtn.MouseButton1Click:Connect(function() Window.Visible = false end)
+local ToggleBtn = Instance.new("TextButton", Window)
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 35)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.3, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+ToggleBtn.Text = "Aimbot: ON"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.TextSize = 11
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
 
-local MainScroll = Instance.new("ScrollingFrame", Window)
-MainScroll.Size = UDim2.new(1, -20, 1, -50)
-MainScroll.Position = UDim2.new(0, 10, 0, 45)
-MainScroll.BackgroundTransparency = 1
-MainScroll.ScrollBarThickness = 2
-MainScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-local uiLay = Instance.new("UIListLayout", MainScroll)
-uiLay.Padding = UDim.new(0, 8)
+ToggleBtn.MouseButton1Click:Connect(function()
+    Config.AimbotEnabled = not Config.AimbotEnabled
+    ToggleBtn.Text = Config.AimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
+    ToggleBtn.BackgroundColor3 = Config.AimbotEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(231, 76, 60)
+end)
 
-local function AddToggle(text, default, callback)
-    local holder = Instance.new("Frame", MainScroll)
-    holder.Size = UDim2.new(1, 0, 0, 32)
-    holder.BackgroundColor3 = THEME.Dark
-    Instance.new("UICorner", holder).CornerRadius = UDim.new(0, 6)
+local HideBtn = Instance.new("TextButton", Window)
+HideBtn.Size = UDim2.new(0.9, 0, 0, 30)
+HideBtn.Position = UDim2.new(0.05, 0, 0.65, 0)
+HideBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+HideBtn.Text = "Minimize / Close UI"
+HideBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+HideBtn.Font = Enum.Font.GothamMedium
+HideBtn.TextSize = 10
+Instance.new("UICorner", HideBtn).CornerRadius = UDim.new(0, 6)
 
-    local lbl = Instance.new("TextLabel", holder)
-    lbl.Size = UDim2.new(1, -45, 1, 0)
-    lbl.Position = UDim2.new(0, 10, 0, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = text
-    lbl.Font = Enum.Font.GothamMedium
-    lbl.TextSize = 11
-    lbl.TextColor3 = THEME.White
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-
-    local dot = Instance.new("Frame", holder)
-    dot.Size = UDim2.new(0, 28, 0, 14)
-    dot.Position = UDim2.new(1, -36, 0.5, -7)
-    dot.BackgroundColor3 = default and THEME.Green or Color3.fromRGB(60, 60, 75)
-    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-
-    local state = default
-    holder.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-            state = not state
-            dot.BackgroundColor3 = state and THEME.Green or Color3.fromRGB(60, 60, 75)
-            callback(state)
-        end
+HideBtn.MouseButton1Click:Connect(function()
+    Window.Visible = false
+    -- Munculkan kembali tombol kecil transparan di layar jika ingin dibuka lagi
+    local openBtn = Instance.new("TextButton", ScreenGui)
+    openBtn.Size = UDim2.new(0, 40, 0, 40)
+    openBtn.Position = UDim2.new(0.02, 0, 0.2, 0)
+    openBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+    openBtn.Text = "A2"
+    openBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    openBtn.Font = Enum.Font.GothamBold
+    openBtn.Active = true
+    openBtn.Draggable = true
+    Instance.new("UICorner", openBtn).CornerRadius = UDim.new(1, 0)
+    openBtn.MouseButton1Click:Connect(function()
+        Window.Visible = true
+        openBtn:Destroy()
     end)
-end
+end)
 
-AddToggle("Laser Tracer Active", Config.LaserEnabled, function(v) Config.LaserEnabled = v end)
-AddToggle("Silent Aim (Auto Hit Target)", Config.SilentAim, function(v) Config.SilentAim = v end)
-AddToggle("Millisecond Prediction", Config.Prediction, function(v) Config.Prediction = v end)
-
-print("✅ A2 HUB V12.1 Loaded Successfully (Silent Aim & Free Movement)!")
+print("✅ A2 Simple Aimbot Loaded Successfully!")
