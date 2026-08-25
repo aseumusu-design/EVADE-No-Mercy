@@ -1,10 +1,10 @@
 --[[
 =========================================================================
-    A2 HUB V5.0 - ULTIMATE SMART SURVIVAL SYSTEM
-    - Separated Laser & Smart Camera Lock
-    - Smart WallCheck & Distance Proximity Safeguard
-    - Ultra-Smooth Directional Correction & Millisecond Prediction
-    - Compact FOV Circle (80 - 120 Max)
+    A2 HUB V6.0 - THE ULTIMATE SURVIVAL COMBAT SYSTEM
+    - Target Category Selector (Killer, Survivor, Zombie)
+    - Compact FOV Circle (80 - 120) & Prediction Toggle
+    - Separated Smart CamLock & Independent Laser Tracer
+    - Dynamic Wall/Proximity Check & Remote-Triggered AutoShoot
 =========================================================================
 ]]
 
@@ -38,17 +38,17 @@ local TARGET_COLORS = {
 
 -- ==================== SMART CONFIG ====================
 local Config = {
-    LaserEnabled   = true,   -- Laser nyala independen tanpa mengunci kamera
-    CamLockEnabled = true,   -- Fitur Camera Lock pintar
-    TargetType     = "Killer",
-    AimPart        = "Head", -- "Head" (Kepala) atau "Body" (Badan)
+    TargetType     = "Killer",  -- Killer, Survivor, Zombie, All
+    AimPart        = "Head",    -- "Head" atau "Body"
     
-    FOVRadius      = 90,     -- Lingkaran FOV kecil (Range 80 - 120)
-    MinDist        = 6,      -- Batas jarak terlalu dekat (Auto-off lock)
-    MaxDist        = 600,    -- Batas jarak maksimal
+    LaserEnabled   = true,      -- Laser penunjuk langsung ke target
+    CamLockEnabled = true,      -- Camera Lock halus (Auto mati jika ada tembok/terlalu dekat)
+    Prediction     = true,      -- Prediksi mili-detik pergerakan target
+    AutoShoot      = true,      -- Tembak otomatis saat remote game aktif & target valid
     
-    Prediction     = true,
-    AutoShoot      = true,
+    FOVRadius      = 100,       -- Ukuran FOV kompak (Range 80 - 120)
+    MinDist        = 5,         -- Batas jarak terlalu dekat (Aman dari bug/meletup)
+    MaxDist        = 800,       -- Jarak maksimal
     FireDelay      = 0.04,
 }
 
@@ -67,12 +67,12 @@ LaserPart.Size = Vector3.new(0.1, 0.1, 1)
 LaserPart.Transparency = 1
 LaserPart.Parent = Workspace
 
--- ==================== VISUAL: COMPACT FOV CIRCLE (80-120) ====================
+-- ==================== VISUAL: FOV CIRCLE (80 - 120) ====================
 local guiParent = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
-pcall(function() if guiParent:FindFirstChild("A2HubV5") then guiParent.A2HubV5:Destroy() end end)
+pcall(function() if guiParent:FindFirstChild("A2HubV6") then guiParent.A2HubV6:Destroy() end end)
 
 local ScreenGui = Instance.new("ScreenGui", guiParent)
-ScreenGui.Name = "A2HubV5"
+ScreenGui.Name = "A2HubV6"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 
@@ -89,9 +89,9 @@ UICornerFOV.CornerRadius = UDim.new(1, 0)
 local UIStrokeFOV = Instance.new("UIStroke", FOVFrame)
 UIStrokeFOV.Color = Color3.fromRGB(255, 255, 255)
 UIStrokeFOV.Thickness = 1.5
-UIStrokeFOV.Transparency = 0.4
+UIStrokeFOV.Transparency = 0.3
 
--- ==================== SMART UTILS & CHECKS ====================
+-- ==================== UTILS & SMART CHECKS ====================
 local function ClassifyTarget(char, plr)
     local n = (char and char.Name or ""):lower()
     local t = (plr and plr.Team and plr.Team.Name or ""):lower()
@@ -117,7 +117,7 @@ local function GetTargetPart(char)
     end
 end
 
--- Cek Tembok (WallCheck): Mengembalikan true jika jalur tembakan bersih tanpa halangan tembok
+-- WallCheck Pintar: Deteksi halangan tembok
 local function HasLineOfSight(targetPart)
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -133,7 +133,6 @@ local function HasLineOfSight(targetPart)
 
     local result = Workspace:Raycast(origin, direction, raycastParams)
     if result then
-        -- Jika raycast mengenai sesuatu yang bukan bagian dari target, berarti terhalang tembok
         local hitModel = result.Instance:FindFirstAncestorOfClass("Model")
         if hitModel and hitModel ~= targetPart.Parent then
             return false
@@ -142,7 +141,7 @@ local function HasLineOfSight(targetPart)
     return true
 end
 
--- Mencari target di dalam lingkaran FOV kecil (80-120)
+-- Cari target di dalam radius FOV kecil
 local function FindSmartTarget()
     local origin = Camera.CFrame.Position
     local best, bestScore = nil, math.huge
@@ -157,7 +156,6 @@ local function FindSmartTarget()
                     local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                     if onScreen then
                         local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                        -- Wajib berada di dalam lingkaran FOV kecil
                         if mouseDist <= Config.FOVRadius then
                             local dist = (part.Position - origin).Magnitude
                             if dist <= Config.MaxDist and dist < bestScore then
@@ -173,7 +171,7 @@ local function FindSmartTarget()
     return best
 end
 
--- Prediksi Milidetik Target
+-- Prediksi Milidetik Pergerakan Target
 local function GetPredictPos(char, part)
     if not part then return nil end
     if not Config.Prediction then return part.Position end
@@ -181,7 +179,7 @@ local function GetPredictPos(char, part)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if hrp and hrp.AssemblyLinearVelocity then
         local distance = (Camera.CFrame.Position - part.Position).Magnitude
-        local travelTime = distance / 1400 -- Kecepatan proyektil presisi tinggi
+        local travelTime = distance / 1500 -- Waktu tempuh milidetik proyektil presisi tinggi
         return part.Position + (hrp.AssemblyLinearVelocity * travelTime)
     end
     return part.Position
@@ -197,6 +195,7 @@ local function GetEmperorGun()
     return arm:FindFirstChild("EmperorGun")
 end
 
+-- AutoShoot Berdasarkan Eksekusi Remote Game Aktif
 local function FireWeapon(targetPos)
     local now = tick()
     if now - LastFireTime < Config.FireDelay then return end
@@ -227,7 +226,7 @@ RunService.RenderStepped:Connect(function()
             local predictedPos = GetPredictPos(CurrentTarget.char, part)
             local distToTarget = (part.Position - Camera.CFrame.Position).Magnitude
 
-            -- 1. SMART LASER TRACER (Aktif independen tanpa merusak kamera)
+            -- 1. LASER TRACER INDEPENDEN
             if Config.LaserEnabled then
                 local gun = GetEmperorGun()
                 local from = (gun and gun.Position) or Camera.CFrame.Position
@@ -239,27 +238,17 @@ RunService.RenderStepped:Connect(function()
                 LaserPart.Transparency = 1
             end
 
-            -- 2. SMART CAMERA LOCK (Dilengkapi Pengecekan Tembok & Jarak Aman)
+            -- 2. SMART CAMERA LOCK (Dengan Cek Tembok & Jarak Aman)
             local canLock = true
-            
-            -- Cek jarak terlalu dekat (Aman dari meletup/bug badan sendiri)
-            if distToTarget < Config.MinDist then
-                canLock = false
-            end
+            if distToTarget < Config.MinDist then canLock = false end -- Terlalu dekat -> Mati sementara
+            if not HasLineOfSight(part) then canLock = false end        -- Terhalang tembok -> Mati sementara
 
-            -- Cek terhalang tembok (WallCheck)
-            if not HasLineOfSight(part) then
-                canLock = false
-            end
-
-            -- Jika syarat terpenuhi dan fitur CamLock dihidupkan
             if Config.CamLockEnabled and canLock then
                 local targetCF = CFrame.new(Camera.CFrame.Position, predictedPos)
-                -- Koreksi posisi halus (Smooth Correction tanpa kaku)
-                Camera.CFrame = Camera.CFrame:Lerp(targetCF, 0.35)
+                Camera.CFrame = Camera.CFrame:Lerp(targetCF, 0.4) -- Koreksi halus tanpa kaku
             end
 
-            -- 3. AUTO SHOOT PRESISI TINGGI
+            -- 3. AUTO SHOOT VIA REMOTE
             if Config.AutoShoot and canLock then
                 FireWeapon(predictedPos)
             end
@@ -269,7 +258,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ==================== SIMPLE MODULAR UI (A2 HUB V5) ====================
+-- ==================== MODULAR SIMPLE UI (A2 HUB V6) ====================
 local Bubble = Instance.new("ImageButton", ScreenGui)
 Bubble.Size = UDim2.new(0, 50, 0, 50)
 Bubble.Position = UDim2.new(0, 15, 0.25, 0)
@@ -280,12 +269,11 @@ Bubble.Draggable = true
 Instance.new("UICorner", Bubble).CornerRadius = UDim.new(1, 0)
 
 local Window = Instance.new("Frame", ScreenGui)
-Window.Size = UDim2.new(0, 420, 0, 320)
-Window.Position = UDim2.new(0.5, -210, 0.5, -160)
+Window.Size = UDim2.new(0, 440, 0, 380)
+Window.Position = UDim2.new(0.5, -220, 0.5, -190)
 Window.BackgroundColor3 = THEME.Bg
 Window.Active = true
 Window.Draggable = true
-Window.Visible = true
 Instance.new("UICorner", Window).CornerRadius = UDim.new(0, 12)
 
 Bubble.MouseButton1Click:Connect(function() Window.Visible = not Window.Visible end)
@@ -299,7 +287,7 @@ local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, -40, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "A2 HUB V5.0 — SMART COMBAT"
+Title.Text = "A2 HUB V6.0 — SMART SURVIVAL"
 Title.TextColor3 = THEME.White
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 12
@@ -315,7 +303,6 @@ CloseBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
 CloseBtn.MouseButton1Click:Connect(function() Window.Visible = false end)
 
--- UI Container
 local MainScroll = Instance.new("ScrollingFrame", Window)
 MainScroll.Size = UDim2.new(1, -20, 1, -50)
 MainScroll.Position = UDim2.new(0, 10, 0, 45)
@@ -357,9 +344,89 @@ local function AddToggle(text, default, callback)
     end)
 end
 
--- UI Controls
+-- Target Category Selector (Killer, Survivor, Zombie)
+local tLabel = Instance.new("TextLabel", MainScroll)
+tLabel.Size = UDim2.new(1, 0, 0, 18)
+tLabel.BackgroundTransparency = 1
+tLabel.Text = "Pilih Target Kategori:"
+tLabel.TextColor3 = THEME.TextDim
+tLabel.Font = Enum.Font.GothamMedium
+tLabel.TextSize = 11
+tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local targetContainer = Instance.new("Frame", MainScroll)
+targetContainer.Size = UDim2.new(1, 0, 0, 30)
+targetContainer.BackgroundTransparency = 1
+local tcLayout = Instance.new("UIListLayout", targetContainer)
+tcLayout.FillDirection = Enum.FillDirection.Horizontal
+tcLayout.Padding = UDim.new(0, 5)
+
+for _, tName in ipairs({"Killer", "Survivor", "Zombie"}) do
+    local btn = Instance.new("TextButton", targetContainer)
+    btn.Size = UDim2.new(0.32, 0, 1, 0)
+    btn.BackgroundColor3 = (Config.TargetType == tName) and THEME.Accent or THEME.Dark
+    btn.Text = tName
+    btn.TextColor3 = THEME.White
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 11
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    
+    btn.MouseButton1Click:Connect(function()
+        Config.TargetType = tName
+        for _, child in ipairs(targetContainer:GetChildren()) do
+            if child:IsA("TextButton") then
+                child.BackgroundColor3 = (child.Text == tName) and THEME.Accent or THEME.Dark
+            end
+        end
+    end)
+end
+
+-- FOV Radius Adjuster (80 - 120)
+local fovFrame = Instance.new("Frame", MainScroll)
+fovFrame.Size = UDim2.new(1, 0, 0, 40)
+fovFrame.BackgroundColor3 = THEME.Dark
+Instance.new("UICorner", fovFrame).CornerRadius = UDim.new(0, 6)
+
+local fovLbl = Instance.new("TextLabel", fovFrame)
+fovLbl.Size = UDim2.new(1, -10, 0, 18)
+fovLbl.Position = UDim2.new(0, 10, 0, 2)
+fovLbl.BackgroundTransparency = 1
+fovLbl.Text = "FOV Circle Size: " .. Config.FOVRadius
+fovLbl.TextColor3 = THEME.White
+fovLbl.Font = Enum.Font.GothamMedium
+fovLbl.TextSize = 11
+fovLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnMinus = Instance.new("TextButton", fovFrame)
+btnMinus.Size = UDim2.new(0, 40, 0, 18)
+btnMinus.Position = UDim2.new(0, 10, 0, 20)
+btnMinus.BackgroundColor3 = THEME.Panel
+btnMinus.Text = "-"
+btnMinus.TextColor3 = THEME.White
+Instance.new("UICorner", btnMinus).CornerRadius = UDim.new(0, 4)
+
+local btnPlus = Instance.new("TextButton", fovFrame)
+btnPlus.Size = UDim2.new(0, 40, 0, 18)
+btnPlus.Position = UDim2.new(0, 55, 0, 20)
+btnPlus.BackgroundColor3 = THEME.Panel
+btnPlus.Text = "+"
+btnPlus.TextColor3 = THEME.White
+Instance.new("UICorner", btnPlus).CornerRadius = UDim.new(0, 4)
+
+btnMinus.MouseButton1Click:Connect(function()
+    Config.FOVRadius = math.clamp(Config.FOVRadius - 10, 80, 120)
+    fovLbl.Text = "FOV Circle Size: " .. Config.FOVRadius
+end)
+
+btnPlus.MouseButton1Click:Connect(function()
+    Config.FOVRadius = math.clamp(Config.FOVRadius + 10, 80, 120)
+    fovLbl.Text = "FOV Circle Size: " .. Config.FOVRadius
+end)
+
+-- Toggles UI
 AddToggle("Laser Tracer Active", Config.LaserEnabled, function(v) Config.LaserEnabled = v end)
 AddToggle("Smart Camera Lock (CamLock)", Config.CamLockEnabled, function(v) Config.CamLockEnabled = v end)
-AddToggle("Auto Shoot Target", Config.AutoShoot, function(v) Config.AutoShoot = v end)
+AddToggle("Millisecond Prediction", Config.Prediction, function(v) Config.Prediction = v end)
+AddToggle("Auto Shoot (Remote Trigger)", Config.AutoShoot, function(v) Config.AutoShoot = v end)
 
-print("✅ A2 HUB V5.0 Loaded Successfully with Smart Wall & Proximity Check!")
+print("✅ A2 HUB V6.0 Loaded Successfully!")
