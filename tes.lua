@@ -1,9 +1,9 @@
 --[[
 =========================================================================
-    A2 HUB V7.0 - SYNCED DOUBLE FIRE & SMART COMBAT
-    - Fixed: Tidak spam otomatis, menembak pas saat tombol game ditekan
-    - Hook FireServer murni untuk sinkronisasi peluru yang akurat
-    - Compact FOV (80-120), Laser Tracer, & Smart CamLock
+    A2 HUB V8.0 - FLUID COMBAT & FREE MOVEMENT FIX
+    - Fixed: Karakter bisa lari, jongkok, dan bebas bergerak (Tidak kaku)
+    - Camera Lock hanya aktif saat Target berada di dalam FOV & Tombol Tembak/Lock Ditekan
+    - Independent Laser Tracer & Precise Millisecond Prediction
 =========================================================================
 ]]
 
@@ -12,6 +12,7 @@ local RunService          = game:GetService("RunService")
 local Workspace           = game:GetService("Workspace")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local CoreGui             = game:GetService("CoreGui")
+local UserInputService    = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera      = Workspace.CurrentCamera
@@ -40,13 +41,13 @@ local Config = {
     TargetType     = "Killer",  -- Killer, Survivor, Zombie, All
     AimPart        = "Head",    -- "Head" atau "Body"
     
-    LaserEnabled   = true,      -- Laser penunjuk langsung ke target
-    CamLockEnabled = true,      -- Camera Lock halus
-    Prediction     = true,      -- Prediksi milidetik pergerakan target
+    LaserEnabled   = true,      -- Laser penunjuk independen
+    CamLockEnabled = false,     -- Default OFF agar tidak mengganggu jalan/lari (bisa di-ON lewat UI)
+    Prediction     = true,      -- Prediksi milidetik pergerakan
     DoubleFireSync = true,      -- Sinkronisasi peluru pas saat menembak
     
-    FOVRadius      = 100,       -- Ukuran FOV kompak (Range 80 - 120)
-    MinDist        = 5,         -- Batas jarak terlalu dekat (Aman dari bug)
+    FOVRadius      = 100,       -- Ukuran FOV kompak (80 - 120)
+    MinDist        = 5,         -- Batas jarak aman
     MaxDist        = 800,       -- Jarak maksimal
 }
 
@@ -65,12 +66,12 @@ LaserPart.Size = Vector3.new(0.1, 0.1, 1)
 LaserPart.Transparency = 1
 LaserPart.Parent = Workspace
 
--- ==================== VISUAL: FOV CIRCLE (80 - 120) ====================
+-- ==================== VISUAL: FOV CIRCLE ====================
 local guiParent = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
-pcall(function() if guiParent:FindFirstChild("A2HubV7") then guiParent.A2HubV7:Destroy() end end)
+pcall(function() if guiParent:FindFirstChild("A2HubV8") then guiParent.A2HubV8:Destroy() end end)
 
 local ScreenGui = Instance.new("ScreenGui", guiParent)
-ScreenGui.Name = "A2HubV7"
+ScreenGui.Name = "A2HubV8"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 
@@ -115,7 +116,7 @@ local function GetTargetPart(char)
     end
 end
 
--- WallCheck Pintar: Deteksi halangan tembok
+-- WallCheck Pintar
 local function HasLineOfSight(targetPart)
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -169,7 +170,6 @@ local function FindSmartTarget()
     return best
 end
 
--- Prediksi Milidetik Pergerakan Target
 local function GetPredictPos(char, part)
     if not part then return nil end
     if not Config.Prediction then return part.Position end
@@ -201,7 +201,6 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
 
-    -- Hanya menyinkronkan arah peluru pas saat tombol tembak asli game ditekan
     if Config.DoubleFireSync and method == "FireServer" and self == fireRemote and not isFiringSync then
         if CurrentTarget and IsAlive(CurrentTarget.char) then
             isFiringSync = true
@@ -214,7 +213,7 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
                     local newDir = (predictedPos - from).Unit
                     
                     local customArgs = {
-                        args[1], -- Tool reference
+                        args[1],
                         vector.create(newDir.X, newDir.Y, newDir.Z)
                     }
                     pcall(function()
@@ -242,7 +241,7 @@ RunService.RenderStepped:Connect(function()
             local predictedPos = GetPredictPos(CurrentTarget.char, part)
             local distToTarget = (part.Position - Camera.CFrame.Position).Magnitude
 
-            -- 1. LASER TRACER INDEPENDEN
+            -- 1. LASER TRACER INDEPENDEN (Hanya visual garis, tidak mengunci gerakan)
             if Config.LaserEnabled then
                 local gun = GetEmperorGun()
                 local from = (gun and gun.Position) or Camera.CFrame.Position
@@ -254,14 +253,15 @@ RunService.RenderStepped:Connect(function()
                 LaserPart.Transparency = 1
             end
 
-            -- 2. SMART CAMERA LOCK (Dengan Cek Tembok & Jarak Aman)
+            -- 2. CAMERA LOCK HALUS (Hanya aktif jika CamLock di-ON-kan di menu)
             local canLock = true
             if distToTarget < Config.MinDist then canLock = false end 
             if not HasLineOfSight(part) then canLock = false end        
 
             if Config.CamLockEnabled and canLock then
+                -- Menggunakan lerp ringan agar pergerakan lari/jongkok tetap bebas dan tidak kaku
                 local targetCF = CFrame.new(Camera.CFrame.Position, predictedPos)
-                Camera.CFrame = Camera.CFrame:Lerp(targetCF, 0.4) 
+                Camera.CFrame = Camera.CFrame:Lerp(targetCF, 0.15) 
             end
         end
     else
@@ -269,7 +269,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ==================== MODULAR SIMPLE UI (A2 HUB V7) ====================
+-- ==================== MODULAR SIMPLE UI (A2 HUB V8) ====================
 local Bubble = Instance.new("ImageButton", ScreenGui)
 Bubble.Size = UDim2.new(0, 50, 0, 50)
 Bubble.Position = UDim2.new(0, 15, 0.25, 0)
@@ -298,7 +298,7 @@ local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, -40, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "A2 HUB V7.0 — SYNCED COMBAT"
+Title.Text = "A2 HUB V8.0 — FLUID COMBAT"
 Title.TextColor3 = THEME.White
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 12
@@ -434,10 +434,10 @@ btnPlus.MouseButton1Click:Connect(function()
     fovLbl.Text = "FOV Circle Size: " .. Config.FOVRadius
 end)
 
--- Toggles UI
+-- Toggles UI (CamLock default OFF agar gerakan lari & jongkok tidak kaku)
 AddToggle("Laser Tracer Active", Config.LaserEnabled, function(v) Config.LaserEnabled = v end)
 AddToggle("Smart Camera Lock (CamLock)", Config.CamLockEnabled, function(v) Config.CamLockEnabled = v end)
 AddToggle("Millisecond Prediction", Config.Prediction, function(v) Config.Prediction = v end)
 AddToggle("Synced Double Fire (Auto Fire)", Config.DoubleFireSync, function(v) Config.DoubleFireSync = v end)
 
-print("✅ A2 HUB V7.0 Loaded Successfully with Synced Fire & Clean Logic!")
+print("✅ A2 HUB V8.0 Loaded Successfully!")
