@@ -1,419 +1,378 @@
--- ============================================
--- KILLER SKILL REMOTE + ANIMATION CAPTURER + LOOP
--- ============================================
+--[[
+    🔥 POV LOCK PRO + DAFTAR TARGET MANUAL
+    - Tampilkan semua musuh dalam radius (nama + jarak)
+    - Klik nama untuk lock ke target itu
+    - Tombol "Auto" untuk kembali ke target terdekat
+    - Kamera tetap mengikuti target saat gerak / skill
+]]
 
-local player = game.Players.LocalPlayer
-local char = player.Character or player.CharacterAdded:Wait()
-local hum = char:WaitForChild("Humanoid")
-local playerGui = player:WaitForChild("PlayerGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Variabel global
-local capturedAnims = {}  -- { [id] = {name=..., id=...} }
-local remoteEventsList = {}
-local activeTracks = {}   -- menyimpan track yang sedang berjalan
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
--- ============================================
--- 1. BUAT GUI
--- ============================================
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "KillerSkillGUI"
-screenGui.Parent = playerGui
+-- ===== KONFIGURASI =====
+local RADIUS = 100
+local LOCK_DURATION = 0.8
+local SKILL_KEY = Enum.KeyCode.E
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 700, 0, 520)
-frame.Position = UDim2.new(0.5, -350, 0.5, -260)
-frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-frame.BackgroundTransparency = 0.1
-frame.BorderSizePixel = 0
-frame.Parent = screenGui
+-- ===== VARIABEL =====
+local isEnabled = true
+local lockUntil = 0
+local character = player.Character or player.CharacterAdded:Wait()
+local selectedTarget = nil          -- Target yang dipilih manual (HumanoidRootPart)
+local targetName = ""
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = frame
+-- ===== FUNGSI MENDAPATKAN SEMUA MUSUH DALAM RADIUS =====
+local function getTargetsInRadius()
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return {} end
 
--- Judul
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 35)
-title.Text = "🎯 Killer Skills + Animation Capture (Loop)"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 20
-title.Font = Enum.Font.GothamBold
-title.BackgroundTransparency = 1
-title.Parent = frame
-
--- ============================================
--- 1A. Panel KIRI: Daftar RemoteEvent
--- ============================================
-local leftPanel = Instance.new("Frame")
-leftPanel.Size = UDim2.new(0, 320, 0, 400)
-leftPanel.Position = UDim2.new(0, 10, 0, 45)
-leftPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-leftPanel.BorderSizePixel = 0
-leftPanel.Parent = frame
-
-local leftCorner = Instance.new("UICorner")
-leftCorner.CornerRadius = UDim.new(0, 6)
-leftCorner.Parent = leftPanel
-
-local leftLabel = Instance.new("TextLabel")
-leftLabel.Size = UDim2.new(1, 0, 0, 25)
-leftLabel.Text = "📡 RemoteEvents"
-leftLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-leftLabel.TextSize = 14
-leftLabel.Font = Enum.Font.GothamBold
-leftLabel.BackgroundTransparency = 1
-leftLabel.Parent = leftPanel
-
-local leftScroll = Instance.new("ScrollingFrame")
-leftScroll.Size = UDim2.new(1, -10, 1, -35)
-leftScroll.Position = UDim2.new(0, 5, 0, 30)
-leftScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-leftScroll.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-leftScroll.BorderSizePixel = 0
-leftScroll.Parent = leftPanel
-
-local leftLayout = Instance.new("UIListLayout")
-leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
-leftLayout.Padding = UDim.new(0, 2)
-leftLayout.Parent = leftScroll
-
--- ============================================
--- 1B. Panel KANAN: Animasi yang tertangkap
--- ============================================
-local rightPanel = Instance.new("Frame")
-rightPanel.Size = UDim2.new(0, 340, 0, 400)
-rightPanel.Position = UDim2.new(0, 350, 0, 45)
-rightPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-rightPanel.BorderSizePixel = 0
-rightPanel.Parent = frame
-
-local rightCorner = Instance.new("UICorner")
-rightCorner.CornerRadius = UDim.new(0, 6)
-rightCorner.Parent = rightPanel
-
-local rightLabel = Instance.new("TextLabel")
-rightLabel.Size = UDim2.new(1, 0, 0, 25)
-rightLabel.Text = "🎬 Captured Animations"
-rightLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-rightLabel.TextSize = 14
-rightLabel.Font = Enum.Font.GothamBold
-rightLabel.BackgroundTransparency = 1
-rightLabel.Parent = rightPanel
-
-local rightScroll = Instance.new("ScrollingFrame")
-rightScroll.Size = UDim2.new(1, -10, 1, -35)
-rightScroll.Position = UDim2.new(0, 5, 0, 30)
-rightScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-rightScroll.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-rightScroll.BorderSizePixel = 0
-rightScroll.Parent = rightPanel
-
-local rightLayout = Instance.new("UIListLayout")
-rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
-rightLayout.Padding = UDim.new(0, 2)
-rightLayout.Parent = rightScroll
-
--- ============================================
--- 2. FUNGSI PENCARI REMOTEEVENT
--- ============================================
-local function findRemoteEvents(parent)
-    local events = {}
-    for _, obj in pairs(parent:GetChildren()) do
-        if obj:IsA("RemoteEvent") then
-            table.insert(events, obj.Name)
-        elseif obj:IsA("Folder") or obj:IsA("Model") or obj:IsA("Tool") then
-            for _, name in pairs(findRemoteEvents(obj)) do
-                table.insert(events, name)
+    local targets = {}
+    for _, otherPlayer in ipairs(Players:GetPlayers()) do
+        if otherPlayer ~= player then
+            local otherChar = otherPlayer.Character
+            if otherChar then
+                local otherRoot = otherChar:FindFirstChild("HumanoidRootPart")
+                local humanoid = otherChar:FindFirstChild("Humanoid")
+                if otherRoot and humanoid and humanoid.Health > 0 then
+                    local dist = (root.Position - otherRoot.Position).Magnitude
+                    if dist <= RADIUS then
+                        table.insert(targets, {
+                            player = otherPlayer,
+                            rootPart = otherRoot,
+                            distance = dist,
+                            name = otherPlayer.Name
+                        })
+                    end
+                end
             end
         end
     end
-    return events
+    table.sort(targets, function(a, b) return a.distance < b.distance end)
+    return targets
 end
 
--- ============================================
--- 3. FUNGSI CAPTURE ANIMASI
--- ============================================
-local function captureAnimation(animId, animName)
-    if not animId or capturedAnims[animId] then return end
-    capturedAnims[animId] = { name = animName, id = animId }
-    
-    local item = Instance.new("Frame")
-    item.Size = UDim2.new(1, 0, 0, 40)
-    item.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    item.BorderSizePixel = 0
-    item.Parent = rightScroll
-    
-    local itemCorner = Instance.new("UICorner")
-    itemCorner.CornerRadius = UDim.new(0, 4)
-    itemCorner.Parent = item
-    
-    -- Nama animasi
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(0, 100, 1, 0)
-    nameLabel.Text = animName or "Animation"
-    nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    nameLabel.TextSize = 12
-    nameLabel.Font = Enum.Font.Gotham
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.Parent = item
-    
-    -- ID singkat
-    local idLabel = Instance.new("TextLabel")
-    idLabel.Size = UDim2.new(0, 110, 1, 0)
-    idLabel.Position = UDim2.new(0, 105, 0, 0)
-    idLabel.Text = string.sub(animId, -12)
-    idLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-    idLabel.TextSize = 11
-    idLabel.Font = Enum.Font.Gotham
-    idLabel.BackgroundTransparency = 1
-    idLabel.TextXAlignment = Enum.TextXAlignment.Left
-    idLabel.Parent = item
-    
-    -- Tombol Play (sekali)
-    local playBtn = Instance.new("TextButton")
-    playBtn.Size = UDim2.new(0, 28, 0, 28)
-    playBtn.Position = UDim2.new(0, 220, 0, 6)
-    playBtn.Text = "▶"
-    playBtn.TextSize = 16
-    playBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-    playBtn.BorderSizePixel = 0
-    playBtn.Parent = item
-    local pCorner = Instance.new("UICorner"); pCorner.CornerRadius = UDim.new(0, 4); pCorner.Parent = playBtn
-    playBtn.MouseButton1Click:Connect(function() playAnimation(animId, false) end)
-    
-    -- Tombol Loop (berulang)
-    local loopBtn = Instance.new("TextButton")
-    loopBtn.Size = UDim2.new(0, 28, 0, 28)
-    loopBtn.Position = UDim2.new(0, 252, 0, 6)
-    loopBtn.Text = "🔄"
-    loopBtn.TextSize = 16
-    loopBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-    loopBtn.BorderSizePixel = 0
-    loopBtn.Parent = item
-    local lCorner = Instance.new("UICorner"); lCorner.CornerRadius = UDim.new(0, 4); lCorner.Parent = loopBtn
-    loopBtn.MouseButton1Click:Connect(function() playAnimation(animId, true) end)
-    
-    -- Tombol Stop semua
-    local stopBtn = Instance.new("TextButton")
-    stopBtn.Size = UDim2.new(0, 28, 0, 28)
-    stopBtn.Position = UDim2.new(0, 284, 0, 6)
-    stopBtn.Text = "⏹"
-    stopBtn.TextSize = 16
-    stopBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    stopBtn.BorderSizePixel = 0
-    stopBtn.Parent = item
-    local sCorner = Instance.new("UICorner"); sCorner.CornerRadius = UDim.new(0, 4); sCorner.Parent = stopBtn
-    stopBtn.MouseButton1Click:Connect(function()
-        stopAllAnimations()
-        notif("⏹ Semua animasi dihentikan")
-    end)
-    
-    -- Tombol Copy ID
-    local copyBtn = Instance.new("TextButton")
-    copyBtn.Size = UDim2.new(0, 28, 0, 28)
-    copyBtn.Position = UDim2.new(0, 316, 0, 6)
-    copyBtn.Text = "📋"
-    copyBtn.TextSize = 16
-    copyBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    copyBtn.BorderSizePixel = 0
-    copyBtn.Parent = item
-    local cCorner = Instance.new("UICorner"); cCorner.CornerRadius = UDim.new(0, 4); cCorner.Parent = copyBtn
-    copyBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            if setclipboard then setclipboard(animId)
-            elseif toClipboard then toClipboard(animId) end
-        end)
-        notif("📋 ID disalin: " .. string.sub(animId, -12))
-    end)
-    
-    rightScroll.CanvasSize = UDim2.new(0, 0, 0, #capturedAnims * 45 + 10)
+-- ===== FUNGSI TARGET TERDEKAT (AUTO) =====
+local function getNearestTarget()
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local nearestPart = nil
+    local nearestDist = RADIUS
+
+    for _, otherPlayer in ipairs(Players:GetPlayers()) do
+        if otherPlayer ~= player then
+            local otherChar = otherPlayer.Character
+            if otherChar then
+                local otherRoot = otherChar:FindFirstChild("HumanoidRootPart")
+                local humanoid = otherChar:FindFirstChild("Humanoid")
+                if otherRoot and humanoid and humanoid.Health > 0 then
+                    local dist = (root.Position - otherRoot.Position).Magnitude
+                    if dist < nearestDist then
+                        nearestDist = dist
+                        nearestPart = otherRoot
+                    end
+                end
+            end
+        end
+    end
+    return nearestPart
 end
 
--- ============================================
--- 4. FUNGSI PLAY ANIMASI (dengan opsi loop)
--- ============================================
-local function playAnimation(animId, loop)
-    local char = player.Character
-    if not char then return end
-    local hum = char:FindFirstChild("Humanoid")
-    if not hum then return end
-    
-    -- Hentikan animasi yang sama jika sedang berjalan
-    stopAllAnimations()
-    
-    local anim = Instance.new("Animation")
-    anim.AnimationId = animId
-    
-    local track = hum:LoadAnimation(anim)
-    if track then
-        if loop then
-            track.Looped = true
-            track:Play()
-            table.insert(activeTracks, track)
-            notif("🔄 Looping: " .. string.sub(animId, -12))
+-- ===== LOCK KAMERA KE TARGET =====
+local function lockToTarget(target)
+    if target and isEnabled then
+        local currentPos = camera.CFrame.Position
+        camera.CFrame = CFrame.new(currentPos, target.Position)
+        return true
+    end
+    return false
+end
+
+-- ===== CARI TARGET AKTIF =====
+local function getActiveTarget()
+    if selectedTarget and selectedTarget.Parent and selectedTarget.Parent:FindFirstChild("Humanoid") and
+        selectedTarget.Parent.Humanoid.Health > 0 then
+        return selectedTarget
+    else
+        selectedTarget = nil
+        targetName = ""
+        return nil
+    end
+end
+
+-- ===== HOOK REMOTE (SEMUA) =====
+local function hookRemote(remote)
+    if not remote then return end
+    if remote:IsA("RemoteEvent") then
+        local success, original = pcall(function() return remote.FireServer end)
+        if not success or type(original) ~= "function" then return end
+        remote.FireServer = function(self, ...)
+            if isEnabled then
+                local target = getActiveTarget() or getNearestTarget()
+                if target then
+                    lockToTarget(target)
+                    lockUntil = tick() + LOCK_DURATION
+                end
+            end
+            return original(self, ...)
+        end
+    elseif remote:IsA("RemoteFunction") then
+        local success, original = pcall(function() return remote.InvokeServer end)
+        if not success or type(original) ~= "function" then return end
+        remote.InvokeServer = function(self, ...)
+            if isEnabled then
+                local target = getActiveTarget() or getNearestTarget()
+                if target then
+                    lockToTarget(target)
+                    lockUntil = tick() + LOCK_DURATION
+                end
+            end
+            return original(self, ...)
+        end
+    end
+end
+
+-- Scan & hook semua remote
+local function scanAndHook(parent)
+    if not parent then return end
+    for _, child in ipairs(parent:GetChildren()) do
+        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+            hookRemote(child)
+        elseif child:IsA("Folder") or child:IsA("Model") or child:IsA("Tool") then
+            scanAndHook(child)
+        end
+    end
+end
+pcall(scanAndHook, ReplicatedStorage)
+
+-- ===== LOOP UTAMA =====
+RunService.Heartbeat:Connect(function()
+    if not character or character.Parent == nil then
+        character = player.Character
+        if not character then return end
+    end
+
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+
+    local isMoving = (humanoid.MoveDirection.Magnitude > 0.1)
+    local isUsingKey = UserInputService:IsKeyDown(SKILL_KEY)
+    local isLockedByRemote = (tick() < lockUntil)
+
+    if isEnabled and (isMoving or isUsingKey or isLockedByRemote) then
+        local target = getActiveTarget() or getNearestTarget()
+        if target then
+            lockToTarget(target)
+            updateIndicator(true)
         else
-            track.Looped = false
-            track:Play()
-            notif("▶ Playing: " .. string.sub(animId, -12))
+            updateIndicator(false)
         end
     else
-        notif("❌ Gagal play animasi")
+        updateIndicator(false)
     end
-end
 
--- ============================================
--- 5. FUNGSI STOP SEMUA ANIMASI
--- ============================================
-local function stopAllAnimations()
-    for _, track in pairs(activeTracks) do
-        pcall(function() track:Stop() end)
-    end
-    activeTracks = {}
-end
-
--- ============================================
--- 6. NOTIFIKASI
--- ============================================
-local function notif(msg)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0, 450, 0, 35)
-    label.Position = UDim2.new(0.5, -225, 0.94, 0)
-    label.Text = msg
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 16
-    label.Font = Enum.Font.GothamBold
-    label.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    label.BackgroundTransparency = 0.3
-    label.BorderSizePixel = 0
-    label.Parent = frame
-    local nc = Instance.new("UICorner"); nc.CornerRadius = UDim.new(0, 6); nc.Parent = label
-    game:GetService("Debris"):AddItem(label, 2)
-end
-
--- ============================================
--- 7. FIRING REMOTE + CAPTURE
--- ============================================
-local function fireRemoteAndCapture(remoteName, remotePath, args)
-    -- Copy remote name
-    pcall(function()
-        if setclipboard then setclipboard(remoteName)
-        elseif toClipboard then toClipboard(remoteName) end
-    end)
-    notif("📋 Remote disalin: " .. remoteName)
-    
-    local remote = remotePath or game:GetService("ReplicatedStorage"):FindFirstChild(remoteName, true)
-    if not remote then
-        notif("❌ Remote tidak ditemukan")
-        return
-    end
-    
-    local success, err = pcall(function()
-        if args then remote:FireServer(unpack(args))
-        else remote:FireServer() end
-    end)
-    if not success then notif("❌ Gagal fire: " .. err) return end
-    
-    notif("🔥 Fired: " .. remoteName .. " (tunggu animasi...)")
-end
-
--- ============================================
--- 8. LISTENER ANIMASI (capture otomatis)
--- ============================================
-hum.AnimationPlayed:Connect(function(track)
-    local anim = track.Animation
-    if anim and anim.AnimationId then
-        local id = anim.AnimationId
-        local name = anim.Name or "Animation"
-        captureAnimation(id, name)
-        -- Copy ID ke clipboard
-        pcall(function()
-            if setclipboard then setclipboard(id)
-            elseif toClipboard then toClipboard(id) end
-        end)
-        notif("🎬 Animasi tertangkap & ID disalin: " .. name)
-    end
+    -- Update daftar target setiap saat (untuk UI)
+    updateTargetList()
 end)
 
--- ============================================
--- 9. TAMPILKAN DAFTAR REMOTE
--- ============================================
-local function displayRemoteEvents()
-    for _, child in pairs(leftScroll:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
+-- ===== UI =====
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "POVLockUI"
+screenGui.Parent = player.PlayerGui
+screenGui.ResetOnSpawn = false
+
+-- Tombol ON/OFF (pojok kiri atas)
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(0, 120, 0, 40)
+toggleFrame.Position = UDim2.new(0, 10, 0, 10)
+toggleFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggleFrame.BackgroundTransparency = 0.2
+toggleFrame.BorderSizePixel = 0
+toggleFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = toggleFrame
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(1, 0, 1, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+toggleBtn.Text = "🔒 ON"
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.TextSize = 18
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.BorderSizePixel = 0
+toggleBtn.Parent = toggleFrame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = toggleBtn
+
+toggleBtn.MouseButton1Click:Connect(function()
+    isEnabled = not isEnabled
+    toggleBtn.Text = isEnabled and "🔒 ON" or "🔓 OFF"
+    toggleBtn.BackgroundColor3 = isEnabled and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(200, 50, 50)
+end)
+
+-- Indikator lingkaran tengah
+local indicator = Instance.new("Frame")
+indicator.Size = UDim2.new(0, 20, 0, 20)
+indicator.Position = UDim2.new(0.5, -10, 0.5, -10)
+indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+indicator.BackgroundTransparency = 0.5
+indicator.BorderSizePixel = 0
+indicator.Parent = screenGui
+
+local indicatorCorner = Instance.new("UICorner")
+indicatorCorner.CornerRadius = UDim.new(1, 0)
+indicatorCorner.Parent = indicator
+
+function updateIndicator(locked)
+    if locked then
+        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        indicator.BackgroundTransparency = 0.3
+    else
+        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        indicator.BackgroundTransparency = 0.5
     end
-    
-    remoteEventsList = {}
-    local rs = game:GetService("ReplicatedStorage")
-    if rs then
-        for _, name in pairs(findRemoteEvents(rs)) do
-            table.insert(remoteEventsList, name)
-        end
-    end
-    
-    for _, name in pairs(remoteEventsList) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 30)
-        btn.Text = name
-        btn.TextColor3 = Color3.fromRGB(220,220,220)
-        btn.TextSize = 13
-        btn.Font = Enum.Font.Gotham
-        btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-        btn.BorderSizePixel = 0
-        btn.TextXAlignment = Enum.TextXAlignment.Left
-        btn.Parent = leftScroll
-        
-        local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0,4); bc.Parent = btn
-        btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(70,70,70) end)
-        btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
-        
-        btn.MouseButton1Click:Connect(function()
-            local remote = game:GetService("ReplicatedStorage"):FindFirstChild(name, true)
-            local args = nil
-            if name == "M2" or name == "Lunge" then args = { {}, true }
-            elseif name == "TrailEvent" then args = { true }
-            elseif name == "Leap" then args = { true }
-            elseif name == "CarrySurvivorEvent" then args = { game.Players.LocalPlayer.Character }
-            elseif name == "ActivatePower" or name == "DeactivatePower" then args = { true }
-            end
-            fireRemoteAndCapture(name, remote, args)
-        end)
-    end
-    
-    leftScroll.CanvasSize = UDim2.new(0, 0, 0, #remoteEventsList * 35 + 10)
 end
 
--- ============================================
--- 10. TOMBOL REFRESH & TUTUP
--- ============================================
-local refreshBtn = Instance.new("TextButton")
-refreshBtn.Size = UDim2.new(0, 150, 0, 35)
-refreshBtn.Position = UDim2.new(0.5, -75, 0.94, 0)
-refreshBtn.Text = "🔄 Refresh List"
-refreshBtn.TextColor3 = Color3.fromRGB(255,255,255)
-refreshBtn.TextSize = 16
-refreshBtn.Font = Enum.Font.GothamBold
-refreshBtn.BackgroundColor3 = Color3.fromRGB(0,120,255)
-refreshBtn.BorderSizePixel = 0
-refreshBtn.Parent = frame
-local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0,6); rc.Parent = refreshBtn
-refreshBtn.MouseButton1Click:Connect(displayRemoteEvents)
+-- ===== PANEL DAFTAR TARGET (pojok kanan atas) =====
+local targetPanel = Instance.new("Frame")
+targetPanel.Size = UDim2.new(0, 200, 0, 300)
+targetPanel.Position = UDim2.new(1, -210, 0, 10)
+targetPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+targetPanel.BackgroundTransparency = 0.3
+targetPanel.BorderSizePixel = 0
+targetPanel.Parent = screenGui
+targetPanel.Visible = true
 
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 80, 0, 35)
-closeBtn.Position = UDim2.new(0.9, 0, 0.94, 0)
-closeBtn.Text = "✖ Tutup"
-closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
-closeBtn.TextSize = 14
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
-closeBtn.BorderSizePixel = 0
-closeBtn.Parent = frame
-local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0,6); cc.Parent = closeBtn
-closeBtn.MouseButton1Click:Connect(function() screenGui.Enabled = not screenGui.Enabled end)
+local panelCorner = Instance.new("UICorner")
+panelCorner.CornerRadius = UDim.new(0, 8)
+panelCorner.Parent = targetPanel
 
--- ============================================
--- 11. JALANKAN
--- ============================================
-displayRemoteEvents()
-notif("✅ Siap! Klik skill → copy remote + capture animasi (bisa loop)")
+local panelStroke = Instance.new("UIStroke")
+panelStroke.Color = Color3.fromRGB(60, 60, 80)
+panelStroke.Thickness = 1
+panelStroke.Parent = targetPanel
+
+-- Title
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 24)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🎯 TARGETS"
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.TextSize = 14
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Parent = targetPanel
+
+-- Tombol "Auto" (kembali ke nearest)
+local autoBtn = Instance.new("TextButton")
+autoBtn.Size = UDim2.new(0, 60, 0, 20)
+autoBtn.Position = UDim2.new(0.5, -30, 0, 2)
+autoBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+autoBtn.Text = "Auto"
+autoBtn.TextColor3 = Color3.new(1, 1, 1)
+autoBtn.TextSize = 12
+autoBtn.Font = Enum.Font.GothamBold
+autoBtn.BorderSizePixel = 0
+autoBtn.Parent = targetPanel
+local autoCorner = Instance.new("UICorner")
+autoCorner.CornerRadius = UDim.new(0, 4)
+autoCorner.Parent = autoBtn
+
+autoBtn.MouseButton1Click:Connect(function()
+    selectedTarget = nil
+    targetName = "Auto"
+    updateTargetList()
+end)
+
+-- Scrolling frame untuk daftar target
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, -4, 1, -30)
+scrollFrame.Position = UDim2.new(0, 2, 0, 26)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollFrame.ScrollBarThickness = 4
+scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 130)
+scrollFrame.Parent = targetPanel
+
+local uiList = Instance.new("UIListLayout")
+uiList.SortOrder = Enum.SortOrder.LayoutOrder
+uiList.Padding = UDim.new(0, 2)
+uiList.Parent = scrollFrame
+
+-- Fungsi update daftar target
+local function updateTargetList()
+    -- Hapus semua tombol sebelumnya (kecuali UIListLayout)
+    for _, child in ipairs(scrollFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    local targets = getTargetsInRadius()
+    local active = getActiveTarget()
+
+    for i, data in ipairs(targets) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -4, 0, 22)
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        btn.Text = string.format("%s (%.1f)", data.name, data.distance)
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.TextSize = 11
+        btn.Font = Enum.Font.Gotham
+        btn.BorderSizePixel = 0
+        btn.Parent = scrollFrame
+
+        -- Highlight jika target ini sedang dipilih
+        if active and active == data.rootPart then
+            btn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+        end
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 4)
+        btnCorner.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+            selectedTarget = data.rootPart
+            targetName = data.name
+            -- Update highlight
+            updateTargetList()
+        end)
+    end
+
+    -- Update canvas size
+    local count = #targets
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 24 + 10)
+
+    -- Tampilkan target aktif di title
+    if active then
+        local name = targetName ~= "" and targetName or (active.Parent and active.Parent.Name or "?")
+        titleLabel.Text = "🎯 " .. name
+    else
+        titleLabel.Text = "🎯 TARGETS"
+    end
+end
+
+-- Inisialisasi daftar
+updateTargetList()
+
+-- Update daftar setiap kali ada pemain baru/keluar
+Players.PlayerAdded:Connect(updateTargetList)
+Players.PlayerRemoving:Connect(updateTargetList)
+-- Update juga setiap kali karakter berubah
+player.CharacterAdded:Connect(function()
+    character = player.Character
+    selectedTarget = nil
+    updateTargetList()
+end)
+
+print("✅ POV Lock + Target List siap!")
+print("📌 Klik nama target di panel kanan atas untuk lock.")
+print("📌 Klik 'Auto' untuk kembali ke target terdekat.")
