@@ -1,5 +1,5 @@
 --[[
-  A2 — VIOLENCE DISTRICT (Mobile Lite | UI Modern | Aim Bot Old+Beta | Moonwalk)
+  NO MERCY — VIOLENCE DISTRICT A2 (Mobile Lite + Generator Progress)
   Updated for smooth & low-lag ESP
   FIX: Drawing ESP performance improvements
   AUTO PARRY REPLACED with new improved version (WalkSpeed sequence, Legit/Aggressive, animations)
@@ -58,6 +58,7 @@ getgenv().VD = getgenv().VD or {
     SURV_DraggableGenBypass = false,
     -- Performance
     ESP_LowPerformance   = false,
+    GeneratorProgressESP = false,
     -- Lighting
     Fullbright           = false,
     NoFog                = false,
@@ -71,7 +72,7 @@ getgenv().VD = getgenv().VD or {
 }
 
 -- ============================================================
---  A2 — "VIOLENCE DISTRICT"
+--  NO MERCY — "VIOLENCE DISTRICT"
 --  UI: Orion (MarV) — full ZiaanHub X feature set
 -- ============================================================
 
@@ -141,7 +142,7 @@ local function ShowWelcomeIntro()
     introText.Position = UDim2.new(0.5, 0, 0.75, 0)
     introText.AnchorPoint = Vector2.new(0.5, 0)
     introText.BackgroundTransparency = 1
-    introText.Text = "WELCOME A2"
+    introText.Text = "WELCOME NO MERCY"
     introText.TextColor3 = Color3.fromRGB(255, 255, 255)
     introText.TextSize = 18
     introText.Font = Enum.Font.GothamBold
@@ -200,7 +201,7 @@ local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Marp
 local onCloseRequest
 
 local OrionWindow = OrionLib:MakeWindow({
-    Name = "A2 — VIOLENCE DISTRICT",
+    Name = "NO MERCY — VIOLENCE DISTRICT",
     HidePremium = false,
     SaveConfig = true,
     ConfigFolder = "NoMercyViolenceFullZiaan",
@@ -330,7 +331,7 @@ local function confirmClose(fromCloseBtn)
     title.Size = UDim2.new(1, -40, 0, 30)
     title.Position = UDim2.new(0, 20, 0, 15)
     title.BackgroundTransparency = 1
-    title.Text = "Tutup A2?"
+    title.Text = "Tutup NO MERCY?"
     title.TextColor3 = Color3.fromRGB(240, 240, 240)
     title.TextSize = 18
     title.Font = Enum.Font.GothamBold
@@ -406,14 +407,14 @@ end
 local InfoTab = OrionWindow:MakeTab({ Name = "Info", Icon = ICON.Info, PremiumOnly = false })
 local InfoSec = InfoTab:AddSection({ Name = "Tentang" })
 
-InfoSec:AddLabel("A2 — Violence District")
-InfoSec:AddLabel("A2 Official Script — Full Mobile Build (All Features)")
+InfoSec:AddLabel("NO MERCY — Violence District")
+InfoSec:AddLabel("A2 Official Script — Full Mobile Build")
 InfoSec:AddLabel("Survivor • Killer • Visual • Player • Parry")
 InfoSec:AddButton({
     Name = "Copy Discord",
     Callback = function()
         if setclipboard then setclipboard("https://discord.gg/pbg6g79Hp") end
-        OrionLib:MakeNotification({ Name = "A2", Content = "Link Discord di-copy!", Image = ICON.Logo, Time = 3 })
+        OrionLib:MakeNotification({ Name = "NO MERCY", Content = "Link Discord di-copy!", Image = ICON.Logo, Time = 3 })
     end,
 })
 InfoSec:AddButton({
@@ -463,104 +464,6 @@ task.spawn(function()
 end)
 
 -- ============================================================
---  TEXT POLISH (MODERN BLUE + SHIMMER BERULANG)
---  Warna teks biru muda + kilau menyapu yang muncul-hilang
---  terus menerus (satu loop global, ringan untuk Android).
--- ============================================================
-do
-    local STROKE_COLOR = Color3.fromRGB(10, 16, 30)
-    local BLUE_TEXT = Color3.fromRGB(190, 230, 255)
-    local BLUE_TITLE = Color3.fromRGB(145, 215, 255)
-    local SHINE = Color3.fromRGB(255, 255, 255)
-
-    local shimmerList = {}
-
-    local function makeShimmer(obj, isTitle)
-        local base = isTitle and BLUE_TITLE or BLUE_TEXT
-        local grad = Instance.new("UIGradient")
-        grad.Name = "VD_Shimmer"
-        grad.Rotation = 12
-        grad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, base),
-            ColorSequenceKeypoint.new(0.40, base),
-            ColorSequenceKeypoint.new(0.50, SHINE),
-            ColorSequenceKeypoint.new(0.60, base),
-            ColorSequenceKeypoint.new(1, base),
-        })
-        grad.Offset = Vector2.new(-1, 0)
-        grad.Parent = obj
-        table.insert(shimmerList, grad)
-        return grad
-    end
-
-    local function applyPolish(obj)
-        if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
-        if obj:GetAttribute("VD_Glow") then return end
-        obj:SetAttribute("VD_Glow", true)
-
-        local isTitle = obj:IsA("TextLabel") and obj.TextSize >= 16
-
-        pcall(function()
-            obj.TextColor3 = isTitle and BLUE_TITLE or BLUE_TEXT
-        end)
-
-        if not obj:FindFirstChild("VD_TextStroke") then
-            local stroke = Instance.new("UIStroke")
-            stroke.Name = "VD_TextStroke"
-            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-            stroke.Color = STROKE_COLOR
-            stroke.Thickness = 0.7
-            stroke.Transparency = 0.5
-            stroke.Parent = obj
-        end
-
-        if not obj:FindFirstChild("VD_Shimmer") then
-            pcall(makeShimmer, obj, isTitle)
-        end
-    end
-
-    -- satu loop global: kilau slow-motion smooth menyapu lalu hilang
-    task.spawn(function()
-        local SWEEP = 7.5
-        local REST = 2.8
-
-        local info = TweenInfo.new(SWEEP, Enum.EasingStyle.Cubic, Enum.EasingDirection.InOut)
-        while not VD.Destroyed do
-            for i = #shimmerList, 1, -1 do
-                local grad = shimmerList[i]
-                if not grad or not grad.Parent then
-                    table.remove(shimmerList, i)
-                else
-                    grad.Offset = Vector2.new(-1, 0)
-                    pcall(function()
-                        TweenService:Create(grad, info, { Offset = Vector2.new(1, 0) }):Play()
-                    end)
-                end
-            end
-            task.wait(SWEEP + REST)
-        end
-    end)
-
-    local hooked = {}
-    local function hookPolish(root)
-        if not root or hooked[root] then return end
-        hooked[root] = true
-        for _, v in ipairs(root:GetDescendants()) do pcall(applyPolish, v) end
-        root.DescendantAdded:Connect(function(v) pcall(applyPolish, v) end)
-    end
-
-
-    task.spawn(function()
-        while not VD.Destroyed do
-            pcall(function()
-                hookPolish(GetHolder())
-                hookPolish(FindMainWindow())
-            end)
-            task.wait(2)
-        end
-    end)
-end
--- ============================================================
 --  ADAPTER: API ZiaanHub (ModernV2) -> OrionLib
 -- ============================================================
 local NM_TabIcons = {
@@ -569,15 +472,26 @@ local NM_TabIcons = {
     Killer = ICON.Axe,
     Visual = ICON.Eye,
     Parry = ICON.Swords,
-    ["Aim Bot"] = ICON.Crosshair,
+    Teleport = ICON.Globe,
+    Aimbot = ICON.Crosshair,
 }
+
+-- Sub-menu yang dinaikkan jadi TAB sendiri (punya ikon di menu samping)
+local NM_PromoteTabs = {
+    ["Teleport"]      = ICON.Globe,
+    ["Aimbot"]        = ICON.Crosshair,
+    ["Silent Aim"]    = ICON.Crosshair,
+    ["Aim Assist"]    = ICON.Crosshair,
+}
+local NM_PromotedTabs = {}
+
 
 local NM_Window
 local NM_ConfigElements = {}
 
 local function NM_Notify(title, content, duration)
     OrionLib:MakeNotification({
-        Name = title or "A2",
+        Name = title or "NO MERCY",
         Content = content or "",
         Image = ICON.Logo,
         Time = duration or 3,
@@ -589,67 +503,108 @@ local function NM_Register(flag, element)
 end
 
 -- ============================================================
---  AUTO-SAVE GLOBAL (semua toggle / slider / dropdown)
---  Setiap kali fitur diaktifkan/diubah -> otomatis tersimpan.
---  Saat script di-execute lagi, semua setting dimuat kembali.
+--  AUTO SAVE (semua toggle / slider / dropdown / color / keybind)
+--  Tersimpan otomatis, dimuat ulang saat reload game / ganti world
 -- ============================================================
-local A2_HttpService = game:GetService("HttpService")
-local A2_STORE_FILE = "A2_ViolenceDistrict_prefs.json"
-A2_PREFS = {}
-pcall(function()
-    if readfile and isfile and isfile(A2_STORE_FILE) then
-        local data = A2_HttpService:JSONDecode(readfile(A2_STORE_FILE))
-        if type(data) == "table" then A2_PREFS = data end
-    end
-end)
+local NM_HttpService = game:GetService("HttpService")
+local NM_SaveFolder  = "NoMercyViolence"
+local NM_SaveFile    = NM_SaveFolder .. "/autosave_ui.json"
 
-local A2_SaveQueued = false
-local A2_LastToast = 0
-function A2_PrefSave(silent)
-    if not silent then
-        local now = tick()
-        if now - A2_LastToast > 1.2 then
-            A2_LastToast = now
-            pcall(NM_Notify, "Config", "Save ✓", 1)
+if makefolder and isfolder and not isfolder(NM_SaveFolder) then
+    pcall(function() makefolder(NM_SaveFolder) end)
+end
+
+local NM_SaveData    = {}
+local NM_Applying    = false
+local NM_SaveQueued  = false
+
+local function NM_Enc(v)
+    if typeof(v) == "Color3" then
+        return { __c3 = { v.R, v.G, v.B } }
+    elseif typeof(v) == "EnumItem" then
+        return { __enum = tostring(v.Name) }
+    elseif type(v) == "table" then
+        local out = {}
+        for k, val in pairs(v) do
+            if type(val) == "boolean" or type(val) == "number" or type(val) == "string" then out[tostring(k)] = val end
+        end
+        return out
+    end
+    return v
+end
+
+local function NM_Dec(v)
+    if type(v) == "table" then
+        if v.__c3 then return Color3.new(v.__c3[1], v.__c3[2], v.__c3[3]) end
+        if v.__enum then
+            local ok, key = pcall(function() return Enum.KeyCode[v.__enum] end)
+            if ok and key then return key end
+            return nil
         end
     end
-    if A2_SaveQueued then return end
-    A2_SaveQueued = true
-    task.delay(0.35, function()
-        A2_SaveQueued = false
+    return v
+end
+
+local function NM_FlushSave()
+    if NM_SaveQueued then return end
+    NM_SaveQueued = true
+    task.delay(1, function()
+        NM_SaveQueued = false
         pcall(function()
-            if writefile then writefile(A2_STORE_FILE, A2_HttpService:JSONEncode(A2_PREFS)) end
+            if writefile then
+                writefile(NM_SaveFile, NM_HttpService:JSONEncode(NM_SaveData))
+            end
         end)
     end)
 end
 
-function A2_PrefSet(key, value, silent)
-    if key == nil then return end
-    A2_PREFS[key] = value
-    A2_PrefSave(silent)
+local function NM_Store(flag, value)
+    if not flag or NM_Applying then return end
+    local enc = NM_Enc(value)
+    if enc == nil then return end
+    NM_SaveData[tostring(flag)] = enc
+    NM_FlushSave()
 end
 
-function A2_PrefGet(key, fallback)
-    if key == nil then return fallback end
-    local v = A2_PREFS[key]
+-- Wrapper callback: simpan nilai lalu jalankan callback asli
+local function NM_Hook(flag, callback)
+    return function(v, ...)
+        NM_Store(flag, v)
+        if callback then pcall(callback, v, ...) end
+    end
+end
+
+pcall(function()
+    if readfile and isfile and isfile(NM_SaveFile) then
+        local data = NM_HttpService:JSONDecode(readfile(NM_SaveFile))
+        if type(data) == "table" then NM_SaveData = data end
+    end
+end)
+
+local function NM_GetSaved(flag, fallback)
+    if flag == nil then return fallback end
+    local raw = NM_SaveData[tostring(flag)]
+    if raw == nil then return fallback end
+    local v = NM_Dec(raw)
     if v == nil then return fallback end
     return v
 end
 
-local function A2_UIKey(cfg, kind)
-    local name = cfg and (cfg.Flag or cfg.Name)
-    if not name then return nil end
-    return "UI::" .. kind .. "::" .. tostring(name)
+-- Terapkan semua nilai tersimpan ke elemen UI (dipanggil setelah UI selesai dibuat)
+local function NM_ApplyAutoSave()
+    NM_Applying = true
+    for flag, raw in pairs(NM_SaveData) do
+        local element = NM_ConfigElements[flag]
+        local value = NM_Dec(raw)
+        if element and value ~= nil then
+            pcall(function()
+                if element.Set then element:Set(value) end
+            end)
+        end
+    end
+    NM_Applying = false
 end
-
-local A2_LoadToastDone = false
-local function A2_LoadToast()
-    if A2_LoadToastDone then return end
-    A2_LoadToastDone = true
-    task.delay(2.5, function()
-        pcall(NM_Notify, "Config", "Save Load ✓", 3)
-    end)
-end
+getgenv().NM_ApplyAutoSave = NM_ApplyAutoSave
 
 local NM_MakeSection
 
@@ -692,59 +647,38 @@ NM_MakeSection = function(orionTab, sectionName)
 
     function self:AddToggle(cfg)
         cfg = cfg or {}
-        local key = A2_UIKey(cfg, "toggle")
-        local saved = A2_PrefGet(key, nil)
-        local startVal = (saved ~= nil) and (saved and true or false) or (cfg.Default and true or false)
+        local flag = cfg.Flag or cfg.Name
         local element
+        local default = NM_GetSaved(flag, cfg.Default and true or false)
         pcall(function()
             element = sec:AddToggle({
                 Name = cfg.Name or "Toggle",
-                Default = startVal,
-                Callback = function(v)
-                    A2_PrefSet(key, v and true or false)
-                    if cfg.Callback then pcall(cfg.Callback, v) end
-                end,
+                Default = default and true or false,
+                Callback = NM_Hook(flag, cfg.Callback),
             })
         end)
-        NM_Register(cfg.Flag or cfg.Name, element)
-        -- restore state fitur saat script dijalankan ulang
-        if saved ~= nil and startVal then
-            A2_LoadToast()
-            task.delay(1.2, function()
-                if cfg.Callback then pcall(cfg.Callback, true) end
-            end)
-        end
+        NM_Register(flag, element)
         return element
     end
 
     function self:AddSlider(cfg)
         cfg = cfg or {}
-        local key = A2_UIKey(cfg, "slider")
-        local saved = tonumber(A2_PrefGet(key, nil))
-        local startVal = saved or cfg.Default or cfg.Min or 0
+        local flag = cfg.Flag or cfg.Name
         local element
+        local default = tonumber(NM_GetSaved(flag, cfg.Default or cfg.Min or 0)) or (cfg.Default or cfg.Min or 0)
         pcall(function()
             element = sec:AddSlider({
                 Name = cfg.Name or "Slider",
                 Min = cfg.Min or 0,
                 Max = cfg.Max or 100,
-                Default = startVal,
+                Default = default,
                 Increment = cfg.Increment or 1,
                 ValueName = cfg.Suffix or "",
                 Color = Color3.fromRGB(200, 200, 200),
-                Callback = function(v)
-                    A2_PrefSet(key, v, true)
-                    if cfg.Callback then pcall(cfg.Callback, v) end
-                end,
+                Callback = NM_Hook(flag, cfg.Callback),
             })
         end)
-        NM_Register(cfg.Flag or cfg.Name, element)
-        if saved ~= nil then
-            A2_LoadToast()
-            task.delay(1.2, function()
-                if cfg.Callback then pcall(cfg.Callback, saved) end
-            end)
-        end
+        NM_Register(flag, element)
         return element
     end
 
@@ -766,23 +700,20 @@ NM_MakeSection = function(orionTab, sectionName)
     function self:AddDropdown(cfg)
         cfg = cfg or {}
         local values = cfg.Values or cfg.Options or {}
-        local key = A2_UIKey(cfg, "dropdown")
 
         if cfg.Multi then
             -- Orion tidak punya multi-select: pakai toggle per opsi
             local state = {}
+            local flag = cfg.Flag or cfg.Name
             pcall(function() sec:AddLabel(cfg.Name or "Options") end)
             if type(cfg.Default) == "table" then
                 for _, v in pairs(cfg.Default) do state[v] = true end
             end
-            local savedMulti = A2_PrefGet(key, nil)
-            local hadSaved = false
+            local savedMulti = NM_GetSaved(flag, nil)
             if type(savedMulti) == "table" then
-                for k in pairs(state) do state[k] = false end
                 for k, v in pairs(savedMulti) do
                     if type(k) == "number" then state[v] = true else state[k] = v and true or false end
                 end
-                hadSaved = true
             end
             local api = { __state = state }
             for _, option in ipairs(values) do
@@ -792,9 +723,7 @@ NM_MakeSection = function(orionTab, sectionName)
                         Default = state[option] and true or false,
                         Callback = function(v)
                             state[option] = v
-                            local store = {}
-                            for k, val in pairs(state) do store[k] = val and true or false end
-                            A2_PrefSet(key, store)
+                            NM_Store(flag, state)
                             if cfg.Callback then pcall(cfg.Callback, state) end
                         end,
                     })
@@ -809,23 +738,18 @@ NM_MakeSection = function(orionTab, sectionName)
                 if cfg.Callback then pcall(cfg.Callback, state) end
             end
             function api:SetValues() end
-            NM_Register(cfg.Flag or cfg.Name, api)
-            if hadSaved then
-                A2_LoadToast()
-                task.delay(1.2, function()
-                    if cfg.Callback then pcall(cfg.Callback, state) end
-                end)
-            end
+            NM_Register(flag, api)
             return api
         end
 
+        local flag = cfg.Flag or cfg.Name
         local default = cfg.Default
         if type(default) == "table" then default = default[1] end
         if default == nil then default = values[1] end
-        local savedVal = A2_PrefGet(key, nil)
-        if type(savedVal) == "string" then
+        local savedDefault = NM_GetSaved(flag, nil)
+        if type(savedDefault) == "string" or type(savedDefault) == "number" then
             for _, v in ipairs(values) do
-                if v == savedVal then default = savedVal break end
+                if v == savedDefault then default = savedDefault break end
             end
         end
 
@@ -835,22 +759,9 @@ NM_MakeSection = function(orionTab, sectionName)
                 Name = cfg.Name or "Dropdown",
                 Default = default,
                 Options = values,
-                Callback = function(v)
-                    local sv = v
-                    if type(sv) == "table" then sv = sv[1] end
-                    if type(sv) == "string" then A2_PrefSet(key, sv) end
-                    if cfg.Callback then pcall(cfg.Callback, v) end
-                end,
+                Callback = NM_Hook(flag, cfg.Callback),
             })
         end)
-
-        if type(savedVal) == "string" and savedVal == default then
-            A2_LoadToast()
-            task.delay(1.2, function()
-                if cfg.Callback then pcall(cfg.Callback, savedVal) end
-            end)
-        end
-
 
         local api = {}
         function api:Set(v) pcall(function() element:Set(v) end) end
@@ -858,23 +769,26 @@ NM_MakeSection = function(orionTab, sectionName)
             pcall(function() element:Refresh(newValues or {}, true) end)
         end
         api.Refresh = api.SetValues
-        NM_Register(cfg.Flag or cfg.Name, api)
+        NM_Register(flag, api)
         return api
     end
 
     function self:AddTextInput(cfg)
         cfg = cfg or {}
+        local flag = cfg.Flag or cfg.Name
         local element
+        local default = tostring(NM_GetSaved(flag, cfg.Default or ""))
         pcall(function()
             element = sec:AddTextbox({
                 Name = cfg.Name or "Input",
-                Default = tostring(cfg.Default or ""),
+                Default = default,
                 TextDisappear = false,
-                Callback = function(v)
-                    if cfg.Callback then pcall(cfg.Callback, v) end
-                end,
+                Callback = NM_Hook(flag, cfg.Callback),
             })
         end)
+        if cfg.Callback and default ~= "" and default ~= tostring(cfg.Default or "") then
+            pcall(cfg.Callback, default)
+        end
         return element
     end
     self.AddInput = self.AddTextInput
@@ -882,36 +796,40 @@ NM_MakeSection = function(orionTab, sectionName)
 
     function self:AddKeybind(cfg)
         cfg = cfg or {}
+        local flag = cfg.Flag or cfg.Name
         local element
+        local savedKey = NM_GetSaved(flag, nil)
         pcall(function()
             element = sec:AddBind({
                 Name = cfg.Name or "Keybind",
-                Default = NM_KeyCodeFromString(cfg.Default),
+                Default = NM_KeyCodeFromString(savedKey or cfg.Default),
                 Hold = false,
                 Callback = function()
                     if cfg.Callback then pcall(cfg.Callback) end
                 end,
             })
         end)
-        NM_Register(cfg.Flag or cfg.Name, element)
+        NM_Register(flag, element)
         return element
     end
     self.AddBind = self.AddKeybind
 
     function self:AddColorPicker(cfg)
         cfg = cfg or {}
+        local flag = cfg.Flag or cfg.Name
         local element
+        local default = NM_GetSaved(flag, cfg.Default or Color3.fromRGB(255, 255, 255))
+        if typeof(default) ~= "Color3" then default = cfg.Default or Color3.fromRGB(255, 255, 255) end
         pcall(function()
             element = sec:AddColorpicker({
                 Name = cfg.Name or "Color",
-                Default = cfg.Default or Color3.fromRGB(255, 255, 255),
-                Callback = function(c)
-                    if cfg.Callback then pcall(cfg.Callback, c) end
-                end,
+                Default = default,
+                Callback = NM_Hook(flag, cfg.Callback),
             })
         end)
-        NM_Register(cfg.Flag or cfg.Name, element)
+        NM_Register(flag, element)
         return element
+
     end
     self.AddColorpicker = self.AddColorPicker
 
@@ -931,8 +849,22 @@ function NM_MakeTabbox(orionTab, boxName)
     end
     function box:AddTab(cfg)
         local name = (type(cfg) == "table" and cfg.Name) or tostring(cfg or "Tab")
+        local icon = NM_PromoteTabs[name]
+        if icon then
+            local promoted = NM_PromotedTabs[name]
+            if not promoted then
+                pcall(function()
+                    promoted = OrionWindow:MakeTab({ Name = name, Icon = icon, PremiumOnly = false })
+                end)
+                NM_PromotedTabs[name] = promoted
+            end
+            if promoted then
+                return NM_MakeSection(promoted, name)
+            end
+        end
         return NM_MakeSection(orionTab, name)
     end
+
     return box
 end
 
@@ -1005,19 +937,6 @@ local function __ZiaanHub_Init_Main__()
     local UI = {}
 
     -- ============================================================
-    --  AUTO-SAVE RINGAN (warna ESP, aim bot, moonwalk)
-    -- ============================================================
-    -- memakai store global (satu file, tidak saling menimpa)
-    local function A2_Set(key, value)
-        A2_PrefSet(key, value, true)
-    end
-    local function A2_Get(key, fallback)
-        return A2_PrefGet(key, fallback)
-    end
-
-
-
-    -- ============================================================
     -- FIX: Define VD_Notify EARLY so it's available in all callbacks
     -- ============================================================
     local function VD_Notify(title, content, duration)
@@ -1031,7 +950,7 @@ local function __ZiaanHub_Init_Main__()
     end
 
     -- ============================================================
-    --  UI: memakai library Orion (A2) via adapter
+    --  UI: memakai library Orion (NO MERCY) via adapter
     -- ============================================================
     local ModernV2 = nil
     local MenuIcon = nil
@@ -2444,10 +2363,20 @@ local function __ZiaanHub_Init_Main__()
             return false
         end
 
-        -- Generator memakai perilaku A2 lama (tanpa progress-scan realtime)
-        -- karena progress ESP baru bikin karakter nyangkut saat repair.
         getgenv().IYAN_SetGeneratorProgressESP = function(state)
-            VD.GeneratorProgressESP = false
+            VD.GeneratorProgressESP = state == true
+            IYAN_ESPState.GeneratorESP = state == true
+            IYAN_ESPState.WorldMasterESP = state == true or IYAN_ESPState.WorldMasterESP
+            IYAN_ESPState.WorldNametags = state == true or IYAN_ESPState.WorldNametags
+            if state then
+                IYAN_RefreshESPRoots()
+                IYAN_StartWorldLoop()
+                NM_Notify("Generator Progress", "Progress generator aktif", 2)
+            else
+                for model in pairs(IYAN_WorldReg.Generator) do
+                    IYAN_ClearWorldVisual("Generator", model)
+                end
+            end
         end
 
         getgenv().IYAN_AddVisualESPControls = function(VisualTabRef)
@@ -2648,99 +2577,6 @@ local function __ZiaanHub_Init_Main__()
                 Callback = function(state)
                     IYAN_ESPState.WorldDistanceESP = state
                     if IYAN_ESPState.WorldMasterESP and IYAN_AnyWorldEnabled() then IYAN_StartWorldLoop() else IYAN_ClearAllWorldESP() end
-                end,
-            })
-
-            -- ============================================================
-            --  WARNA ESP VIA DROPDOWN (auto-save)
-            --  Dropdown target + dropdown warna, setiap ubah langsung tersimpan.
-            -- ============================================================
-            local colorSection = VisualTabRef:AddSection({
-                Position = "Center",
-                Name = "ESP Color Picker (Dropdown)",
-                Icon = "solar:palette-bold",
-                Box = true,
-                BoxBorder = true,
-                Opened = false,
-            })
-
-            local ESP_COLOR_NAMES = {
-                "White", "Red", "Orange", "Yellow", "Green", "Lime",
-                "Cyan", "Blue", "Purple", "Pink", "Black",
-            }
-            local ESP_COLOR_MAP = {
-                White  = Color3.fromRGB(245, 245, 245),
-                Red    = Color3.fromRGB(235, 70, 70),
-                Orange = Color3.fromRGB(245, 150, 60),
-                Yellow = Color3.fromRGB(240, 215, 80),
-                Green  = Color3.fromRGB(70, 190, 120),
-                Lime   = Color3.fromRGB(150, 235, 90),
-                Cyan   = Color3.fromRGB(90, 220, 230),
-                Blue   = Color3.fromRGB(80, 150, 235),
-                Purple = Color3.fromRGB(160, 110, 235),
-                Pink   = Color3.fromRGB(240, 120, 190),
-                Black  = Color3.fromRGB(25, 25, 30),
-            }
-            local ESP_TARGETS = {
-                { Name = "Killer",      Key = "KillerColor",     Player = true },
-                { Name = "Survivor",    Key = "SurvivorColor",   Player = true },
-                { Name = "Spectator",   Key = "SpectatorColor",  Player = true },
-                { Name = "Generator",   Key = "GeneratorColor" },
-                { Name = "Hook",        Key = "HookColor" },
-                { Name = "Gate",        Key = "GateColor" },
-                { Name = "Window",      Key = "WindowColor" },
-                { Name = "Pallet",      Key = "PalletColor" },
-                { Name = "SCP / Zombie",Key = "SCPZombieColor" },
-            }
-            local ESP_TARGET_NAMES = {}
-            local ESP_TARGET_BY_NAME = {}
-            for _, t in ipairs(ESP_TARGETS) do
-                table.insert(ESP_TARGET_NAMES, t.Name)
-                ESP_TARGET_BY_NAME[t.Name] = t
-            end
-
-            -- restore warna tersimpan
-            local savedColors = A2_Get("ESPColors", {})
-            if type(savedColors) == "table" then
-                for _, t in ipairs(ESP_TARGETS) do
-                    local cname = savedColors[t.Name]
-                    if cname and ESP_COLOR_MAP[cname] then
-                        IYAN_ESPState[t.Key] = ESP_COLOR_MAP[cname]
-                    end
-                end
-                pcall(IYAN_RefreshAllPlayers)
-            end
-
-            local selectedTargetName = ESP_TARGET_NAMES[1]
-
-            colorSection:AddDropdown({
-                Name = "ESP Target",
-                Flag = "IYAN ESP Color Target",
-                Values = ESP_TARGET_NAMES,
-                Default = selectedTargetName,
-                Callback = function(v)
-                    if type(v) == "table" then v = v[1] end
-                    selectedTargetName = v or ESP_TARGET_NAMES[1]
-                end,
-            })
-
-            colorSection:AddDropdown({
-                Name = "ESP Color",
-                Flag = "IYAN ESP Color Value",
-                Values = ESP_COLOR_NAMES,
-                Default = "White",
-                Callback = function(v)
-                    if type(v) == "table" then v = v[1] end
-                    local color = ESP_COLOR_MAP[v]
-                    local target = ESP_TARGET_BY_NAME[selectedTargetName]
-                    if not (color and target) then return end
-                    IYAN_ESPState[target.Key] = color
-                    if target.Player then pcall(IYAN_RefreshAllPlayers) end
-
-                    local store = A2_Get("ESPColors", {})
-                    if type(store) ~= "table" then store = {} end
-                    store[selectedTargetName] = v
-                    A2_Set("ESPColors", store)
                 end,
             })
 
@@ -4488,309 +4324,6 @@ local function __ZiaanHub_Init_Main__()
         return adapter
     end
 
-    -- ============================================================
-    --  AIM BOT BETA — engine (POV aware)
-    -- ============================================================
-    local BetaAim = {
-        Enabled     = false,
-        TargetType  = A2_Get("BetaTargetType", "Killer"),
-        SpecificName= A2_Get("BetaSpecific", ""),
-        Method      = A2_Get("BetaMethod", "Laser"),
-        MaxDistance = A2_Get("BetaMaxDistance", 800),
-        FOVRadius   = A2_Get("BetaFOV", 180),
-        Prediction  = A2_Get("BetaPredict", true),
-        AutoShoot   = A2_Get("BetaAutoShoot", true),
-        FireDelay   = A2_Get("BetaFireDelay", 0.1),
-        ShowFOV     = A2_Get("BetaShowFOV", true),
-    }
-    local BETA_COLORS = {
-        Killer   = Color3.fromRGB(255, 80, 80),
-        Survivor = Color3.fromRGB(90, 165, 235),
-        Zombie   = Color3.fromRGB(70, 205, 130),
-        All      = Color3.fromRGB(235, 195, 80),
-    }
-    local BetaTarget, BetaLastFire = nil, 0
-    local BetaLaser, BetaGui, BetaFOVFrame
-
-    local function BetaBuildVisuals()
-        if BetaLaser and BetaLaser.Parent then return end
-        BetaLaser = Instance.new("Part")
-        BetaLaser.Name = "A2_BetaLaser"
-        BetaLaser.Anchored, BetaLaser.CanCollide = true, false
-        BetaLaser.CanQuery, BetaLaser.CanTouch = false, false
-        BetaLaser.Material = Enum.Material.Neon
-        BetaLaser.Transparency = 1
-        BetaLaser.Parent = Workspace
-
-        BetaGui = Instance.new("ScreenGui")
-        BetaGui.Name = "A2_BetaAimGui"
-        BetaGui.ResetOnSpawn = false
-        BetaGui.IgnoreGuiInset = true
-        BetaGui.Parent = GetHolder()
-
-        BetaFOVFrame = Instance.new("Frame")
-        BetaFOVFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-        BetaFOVFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-        BetaFOVFrame.BackgroundTransparency = 1
-        BetaFOVFrame.Visible = false
-        BetaFOVFrame.Parent = BetaGui
-        Instance.new("UICorner", BetaFOVFrame).CornerRadius = UDim.new(1, 0)
-        local st = Instance.new("UIStroke", BetaFOVFrame)
-        st.Color = Color3.fromRGB(235, 238, 245)
-        st.Thickness = 1.4
-        st.Transparency = 0.35
-    end
-
-    local function BetaClassify(char, plr)
-        local n = (char and char.Name or ""):lower()
-        local t = (plr and plr.Team and plr.Team.Name or ""):lower()
-        if n:find("kill") or n:find("monster") or n:find("slasher") or n:find("murder") or t:find("kill") then return "Killer" end
-        if n:find("zomb") or n:find("infect") then return "Zombie" end
-        if plr then return "Survivor" end
-        return "Killer"
-    end
-
-    local function BetaAlive(char)
-        if not char or not char.Parent then return false end
-        local h = char:FindFirstChildOfClass("Humanoid")
-        return h and h.Health > 0 and char:FindFirstChild("Head") ~= nil
-    end
-
-    local function BetaMatches(p, char, kind)
-        if BetaAim.SpecificName ~= "" and BetaAim.SpecificName ~= "None" then
-            return p and p.Name:lower() == BetaAim.SpecificName:lower()
-        end
-        if BetaAim.TargetType == "All" then return true end
-        return kind == BetaAim.TargetType
-    end
-
-    -- POV check: target harus tampil di layar & di dalam FOV circle
-    local function BetaInPOV(part)
-        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-        if not onScreen or screenPos.Z <= 0 then return false, math.huge end
-        local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-        local d = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-        return d <= BetaAim.FOVRadius, d
-    end
-
-    local function BetaFindTarget()
-        local origin = Camera.CFrame.Position
-        local best, bestScore = nil, math.huge
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and BetaAlive(p.Character) then
-                local kind = BetaClassify(p.Character, p)
-                if BetaMatches(p, p.Character, kind) then
-                    local head = p.Character:FindFirstChild("Head")
-                    if head then
-                        local inPov = BetaInPOV(head)
-                        if inPov then
-                            local dist = (head.Position - origin).Magnitude
-                            if dist <= BetaAim.MaxDistance and dist < bestScore then
-                                best, bestScore = { player = p, char = p.Character, kind = kind }, dist
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        return best
-    end
-
-    local function BetaPredictPos(char)
-        local head = char:FindFirstChild("Head")
-        if not head then return nil end
-        if not BetaAim.Prediction then return head.Position end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local travel = (Camera.CFrame.Position - head.Position).Magnitude / 700
-            return head.Position + hrp.AssemblyLinearVelocity * travel
-        end
-        return head.Position
-    end
-
-    local function BetaGun()
-        local char = LocalPlayer.Character
-        local tof = char and char:FindFirstChild("Twist of Fate")
-        local arm = tof and tof:FindFirstChild("Right Arm")
-        return arm and arm:FindFirstChild("EmperorGun")
-    end
-
-    local function BetaFire(targetPos)
-        local now = tick()
-        if now - BetaLastFire < BetaAim.FireDelay then return end
-        BetaLastFire = now
-        local gun = BetaGun()
-        local remote = ReplicatedStorage:FindFirstChild("Remotes")
-        remote = remote and remote:FindFirstChild("Items")
-        remote = remote and remote:FindFirstChild("Twist of Fate")
-        remote = remote and remote:FindFirstChild("Fire")
-        if gun and remote then
-            local from = gun:IsA("BasePart") and gun.Position or Camera.CFrame.Position
-            local dir = (targetPos - from).Unit
-            pcall(function() remote:FireServer(gun, Vector3.new(dir.X, dir.Y, dir.Z)) end)
-        end
-    end
-
-    local BetaConn
-    local function BetaStop()
-        if BetaConn then BetaConn:Disconnect() BetaConn = nil end
-        if BetaLaser then BetaLaser.Transparency = 1 end
-        if BetaFOVFrame then BetaFOVFrame.Visible = false end
-        BetaTarget = nil
-    end
-
-    local function BetaStart()
-        BetaBuildVisuals()
-        if BetaConn then return end
-        BetaConn = RunService.RenderStepped:Connect(function()
-            if not BetaAim.Enabled or VD.Destroyed then return end
-            if BetaFOVFrame then
-                BetaFOVFrame.Visible = BetaAim.ShowFOV
-                BetaFOVFrame.Size = UDim2.new(0, BetaAim.FOVRadius * 2, 0, BetaAim.FOVRadius * 2)
-            end
-
-            local keep = BetaTarget and BetaAlive(BetaTarget.char)
-                and BetaMatches(BetaTarget.player, BetaTarget.char, BetaTarget.kind)
-            if keep then
-                local head = BetaTarget.char:FindFirstChild("Head")
-                keep = head and BetaInPOV(head) or false
-            end
-            if not keep then BetaTarget = BetaFindTarget() end
-
-            if not BetaTarget then
-                BetaLaser.Transparency = 1
-                return
-            end
-
-            local pos = BetaPredictPos(BetaTarget.char)
-            if not pos then BetaLaser.Transparency = 1 return end
-
-            local useLaser  = BetaAim.Method == "Laser" or BetaAim.Method == "Laser + Lock Cam"
-            local useLock   = BetaAim.Method == "Lock Cam" or BetaAim.Method == "Laser + Lock Cam"
-
-            if useLaser then
-                local gun = BetaGun()
-                local from = (gun and gun.Position) or Camera.CFrame.Position
-                local mag = (pos - from).Magnitude
-                BetaLaser.Transparency = 0.25
-                BetaLaser.Color = BETA_COLORS[BetaTarget.kind] or Color3.fromRGB(255, 255, 255)
-                BetaLaser.CFrame = CFrame.lookAt(from, pos) * CFrame.new(0, 0, -mag / 2)
-                BetaLaser.Size = Vector3.new(0.08, 0.08, mag)
-            else
-                BetaLaser.Transparency = 1
-            end
-
-            if useLock then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, pos)
-            end
-
-            if BetaAim.AutoShoot then BetaFire(pos) end
-        end)
-    end
-
-    -- ============================================================
-    --  MOONWALK (dipakai di menu Parry) + jendela mini modern
-    -- ============================================================
-    local Moon = {
-        Active = false,
-        SwaySpeed = A2_Get("MoonSpeed", 15),
-    }
-    local MoonGui, MoonToggleBtn, MoonConn, MoonCounter = nil, nil, nil, 0
-
-    local function MoonSetState(on)
-        Moon.Active = on and true or false
-        if MoonToggleBtn then
-            MoonToggleBtn.Text = Moon.Active and "ON" or "OFF"
-            MoonToggleBtn.BackgroundColor3 = Moon.Active
-                and Color3.fromRGB(64, 196, 138)
-                or Color3.fromRGB(58, 62, 78)
-        end
-    end
-
-    local function MoonBuildWindow()
-        if MoonGui and MoonGui.Parent then MoonGui.Enabled = true return end
-        MoonGui = Instance.new("ScreenGui")
-        MoonGui.Name = "A2_MoonwalkMini"
-        MoonGui.ResetOnSpawn = false
-        MoonGui.Parent = GetHolder()
-
-        local frame = Instance.new("Frame", MoonGui)
-        frame.Size = UDim2.new(0, 176, 0, 62)
-        frame.Position = UDim2.new(0, 18, 0.42, 0)
-        frame.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
-        frame.BackgroundTransparency = 0.06
-        frame.BorderSizePixel = 0
-        frame.Active = true
-        frame.Draggable = true
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
-        local fs = Instance.new("UIStroke", frame)
-        fs.Color = Color3.fromRGB(58, 64, 82)
-        fs.Thickness = 1
-        fs.Transparency = 0.25
-
-        local title = Instance.new("TextLabel", frame)
-        title.Size = UDim2.new(1, -24, 0, 20)
-        title.Position = UDim2.new(0, 14, 0, 9)
-        title.BackgroundTransparency = 1
-        title.Font = Enum.Font.GothamMedium
-        title.TextSize = 12
-        title.TextColor3 = Color3.fromRGB(226, 230, 238)
-        title.TextXAlignment = Enum.TextXAlignment.Left
-        title.Text = "Moonwalk"
-
-        MoonToggleBtn = Instance.new("TextButton", frame)
-        MoonToggleBtn.Size = UDim2.new(0, 62, 0, 24)
-        MoonToggleBtn.Position = UDim2.new(1, -76, 0, 8)
-        MoonToggleBtn.Font = Enum.Font.GothamBold
-        MoonToggleBtn.TextSize = 11
-        MoonToggleBtn.TextColor3 = Color3.fromRGB(240, 243, 250)
-        MoonToggleBtn.AutoButtonColor = false
-        Instance.new("UICorner", MoonToggleBtn).CornerRadius = UDim.new(0, 10)
-        MoonToggleBtn.MouseButton1Click:Connect(function() MoonSetState(not Moon.Active) end)
-
-        local hint = Instance.new("TextLabel", frame)
-        hint.Size = UDim2.new(1, -24, 0, 16)
-        hint.Position = UDim2.new(0, 14, 1, -22)
-        hint.BackgroundTransparency = 1
-        hint.Font = Enum.Font.Gotham
-        hint.TextSize = 10
-        hint.TextColor3 = Color3.fromRGB(140, 148, 166)
-        hint.TextXAlignment = Enum.TextXAlignment.Left
-        hint.Text = "Atur kecepatan di menu Parry"
-
-        MoonSetState(Moon.Active)
-    end
-
-    local function MoonStartLoop()
-        if MoonConn then return end
-        MoonConn = RunService.RenderStepped:Connect(function(dt)
-            if not Moon.Active or VD.Destroyed then return end
-            local char = LocalPlayer.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if not (hrp and hum) then return end
-            if hum.MoveDirection.Magnitude <= 0 then return end
-            local camLook = Camera.CFrame.LookVector
-            local flat = Vector3.new(camLook.X, 0, camLook.Z)
-            if flat.Magnitude < 0.01 then return end
-            flat = flat.Unit
-            MoonCounter = MoonCounter + (dt * (Moon.SwaySpeed or 15))
-            local swayOffset = math.sin(MoonCounter) * 0.4
-            hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + flat) * CFrame.Angles(0, swayOffset, 0)
-        end)
-    end
-
-    local function MoonEnableFeature(on)
-        if on then
-            MoonBuildWindow()
-            MoonStartLoop()
-        else
-            MoonSetState(false)
-            if MoonGui then MoonGui:Destroy() MoonGui = nil MoonToggleBtn = nil end
-            if MoonConn then MoonConn:Disconnect() MoonConn = nil end
-        end
-    end
-
     local function addCenterFeatureTabbox(tab, name, entries)
         local tabbox = tab:AddCenterTabbox(name)
         local created = {}
@@ -4812,7 +4345,6 @@ local function __ZiaanHub_Init_Main__()
             Killer = Window:AddTab({ Name = "Killer", Icon = "solar:danger-bold", Type = "Single" }),
             Visual = Window:AddTab({ Name = "Visual", Icon = "lucide:eye", Type = "Single" }),
             Parry = Window:AddTab({ Name = "Parry", Icon = "solar:sword-bold", Type = "Single" }),
-            AimBot = Window:AddTab({ Name = "Aim Bot", Icon = "solar:crosshair-bold", Type = "Single" }),
         }
 
         -- Player Tab
@@ -5034,6 +4566,159 @@ local function __ZiaanHub_Init_Main__()
             end
         })
 
+        -- ============================================================
+        --  PROTECTION: GOD MODE + INVISIBLE
+        -- ============================================================
+        local protSection = PlayerTab:AddSection({
+            Position = "Center",
+            Name = "Protection",
+            Icon = "solar:shield-bold",
+            Box = true,
+            BoxBorder = true,
+            Opened = true,
+        })
+
+        VD.GOD_Mode      = VD.GOD_Mode or false
+        VD.INVIS_Enabled = VD.INVIS_Enabled or false
+
+        local godConns = {}
+        local function clearGodConns()
+            for _, c in ipairs(godConns) do pcall(function() c:Disconnect() end) end
+            godConns = {}
+        end
+
+        local function applyGodMode(char)
+            if not VD.GOD_Mode then return end
+            char = char or LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not hum then return end
+            pcall(function()
+                hum.BreakJointsOnDeath = false
+                hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                hum.MaxHealth = math.huge
+                hum.Health = hum.MaxHealth
+            end)
+            table.insert(godConns, hum.HealthChanged:Connect(function()
+                if not VD.GOD_Mode then return end
+                pcall(function() hum.Health = hum.MaxHealth end)
+            end))
+            table.insert(godConns, hum.StateChanged:Connect(function(_, new)
+                if not VD.GOD_Mode then return end
+                if new == Enum.HumanoidStateType.Dead or new == Enum.HumanoidStateType.Ragdoll or new == Enum.HumanoidStateType.FallingDown then
+                    pcall(function()
+                        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                        hum.Health = hum.MaxHealth
+                    end)
+                end
+            end))
+        end
+
+        local function setGodMode(on)
+            VD.GOD_Mode = on
+            clearGodConns()
+            if on then
+                applyGodMode()
+                table.insert(godConns, LocalPlayer.CharacterAdded:Connect(function(char)
+                    task.wait(0.4)
+                    applyGodMode(char)
+                end))
+                VD_Notify("God Mode", "Aktif — HP dikunci penuh & anti ragdoll/knock", 3)
+            else
+                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    pcall(function()
+                        hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+                        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+                        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+                        hum.MaxHealth = 100
+                        hum.Health = 100
+                    end)
+                end
+            end
+        end
+
+        protSection:AddToggle({
+            Default = VD.GOD_Mode,
+            Name = "God Mode",
+            Flag = "God Mode",
+            Callback = function(v) pcall(setGodMode, v) end
+        })
+
+        -- INVISIBLE
+        local invisConn = nil
+        local function setPartsInvisible(char, hidden)
+            char = char or LocalPlayer.Character
+            if not char then return end
+            for _, v in ipairs(char:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    pcall(function()
+                        if hidden then
+                            v.Transparency = 1
+                            v.LocalTransparencyModifier = 1
+                            v.CastShadow = false
+                        else
+                            if v.Name ~= "HumanoidRootPart" then v.Transparency = 0 end
+                            v.LocalTransparencyModifier = 0
+                            v.CastShadow = true
+                        end
+                    end)
+                elseif v:IsA("Decal") or v:IsA("Texture") then
+                    pcall(function() v.Transparency = hidden and 1 or 0 end)
+                elseif v:IsA("BillboardGui") or v:IsA("Highlight") then
+                    pcall(function() v.Enabled = not hidden end)
+                end
+            end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                pcall(function()
+                    hum.DisplayDistanceType = hidden and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Viewer
+                    hum.NameDisplayDistance = hidden and 0 or 100
+                    hum.HealthDisplayDistance = hidden and 0 or 100
+                end)
+            end
+        end
+
+        local function setInvisible(on)
+            VD.INVIS_Enabled = on
+            if invisConn then pcall(function() invisConn:Disconnect() end) invisConn = nil end
+            setPartsInvisible(nil, on)
+            if on then
+                -- jaga tetap invisible untuk part/aksesoris baru & setelah respawn
+                invisConn = LocalPlayer.CharacterAdded:Connect(function(char)
+                    task.wait(0.5)
+                    if VD.INVIS_Enabled then setPartsInvisible(char, true) end
+                end)
+                task.spawn(function()
+                    while VD.INVIS_Enabled and not VD.Destroyed do
+                        pcall(setPartsInvisible, nil, true)
+                        task.wait(1.5)
+                    end
+                end)
+                VD_Notify("Invisible", "Body disembunyikan — kamu tetap bisa gerak, parry & interaksi normal", 4)
+            else
+                VD_Notify("Invisible", "Dimatikan — body kembali terlihat", 3)
+            end
+        end
+
+        protSection:AddToggle({
+            Default = VD.INVIS_Enabled,
+            Name = "Invisible (Hide Body)",
+            Flag = "Invisible",
+            Callback = function(v) pcall(setInvisible, v) end
+        })
+
+        protSection:AddButton({
+            Name = "Re-Apply God Mode + Invisible",
+            Callback = function()
+                if VD.GOD_Mode then pcall(setGodMode, true) end
+                if VD.INVIS_Enabled then pcall(setPartsInvisible, nil, true) end
+            end
+        })
+
+
+
         -- Survivor General
         local GeneralTab = SurvivorTabbox1.General
         local genSection = GeneralTab:AddSection({
@@ -5045,6 +4730,17 @@ local function __ZiaanHub_Init_Main__()
             Opened = false,
         })
         genSection:AddToggle({ Default = false, Name = "Auto Skillcheck", Flag = "Auto Skillcheck", Callback = function(v) VD_SetAutoSkillcheck(v) end })
+        genSection:AddToggle({
+            Default = false,
+            Name = "Check Generator Progress",
+            Flag = "Check Generator Progress",
+            Callback = function(v)
+                VD.GeneratorProgressESP = v
+                if getgenv().IYAN_SetGeneratorProgressESP then
+                    getgenv().IYAN_SetGeneratorProgressESP(v)
+                end
+            end
+        })
         genSection:AddDropdown({
             Name = "Skillcheck Mode",
             Flag = "Skillcheck Mode",
@@ -5172,166 +4868,6 @@ local function __ZiaanHub_Init_Main__()
             Callback = function(v) VD.AUTO_ToFDotThreshold = v end
         })
 
-        -- ============================================================
-        --  AIM BOT TAB (ikon crosshair) : Old + Beta
-        -- ============================================================
-        local AimTabbox = addCenterFeatureTabbox(Tabs.AimBot, "Aim Bot", {
-            { Key = "Old", Name = "Old", Icon = "solar:target-bold" },
-            { Key = "Beta", Name = "Beta", Icon = "solar:crosshair-bold" },
-        })
-
-        -- ---------- OLD (engine ToF asli A2) ----------
-        local oldAimSection = AimTabbox.Old:AddSection({
-            Position = "Center",
-            Name = "Silent Aim Twist Of Fate (Old)",
-            Icon = "solar:target-bold",
-            Box = true,
-            BoxBorder = true,
-            Opened = true,
-        })
-        oldAimSection:AddToggle({
-            Default = VD.AUTO_ToFAim, Name = "Enable Aim Bot (Old)", Flag = "AimOld Enable",
-            Callback = function(v) VD.AUTO_ToFAim = v end
-        })
-        oldAimSection:AddDropdown({
-            Name = "Target Mode", Flag = "AimOld Target Mode",
-            Values = { "Killer", "Survivor", "SCP" },
-            Default = VD.AUTO_ToFTargetMode or "Killer",
-            Callback = function(v)
-                if type(v) == "table" then v = v[1] end
-                VD.AUTO_ToFTargetMode = v or "Killer"
-                A2_Set("OldTargetMode", VD.AUTO_ToFTargetMode)
-            end
-        })
-        oldAimSection:AddDropdown({
-            Name = "Aim Part", Flag = "AimOld Aim Part",
-            Values = { "HumanoidRootPart", "Head", "Torso" },
-            Default = VD.AUTO_ToFAimPart or "HumanoidRootPart",
-            Callback = function(v)
-                if type(v) == "table" then v = v[1] end
-                VD.AUTO_ToFAimPart = v or "HumanoidRootPart"
-                A2_Set("OldAimPart", VD.AUTO_ToFAimPart)
-            end
-        })
-        oldAimSection:AddToggle({
-            Default = VD.AUTO_ToFPredict, Name = "Prediction", Flag = "AimOld Prediction",
-            Callback = function(v) VD.AUTO_ToFPredict = v end
-        })
-        oldAimSection:AddSlider({
-            Name = "Bullet Speed", Flag = "AimOld Bullet Speed",
-            Min = 50, Max = 1000, Default = VD.AUTO_ToFBulletSpeed or 200,
-            Callback = function(v) VD.AUTO_ToFBulletSpeed = v end
-        })
-        oldAimSection:AddSlider({
-            Name = "Aim Range (studs)", Flag = "AimOld Aim Range",
-            Min = 10, Max = 300, Default = VD.AUTO_ToFAimRange or 90,
-            Callback = function(v) VD.AUTO_ToFAimRange = v end
-        })
-        oldAimSection:AddSlider({
-            Name = "Safe FOV (Dot Threshold)", Flag = "AimOld Dot",
-            Min = -1, Max = 1, Default = VD.AUTO_ToFDotThreshold or 0.5, Increment = 0.05,
-            Callback = function(v) VD.AUTO_ToFDotThreshold = v end
-        })
-
-        -- ---------- BETA (engine baru, POV aware) ----------
-        local betaSection = AimTabbox.Beta:AddSection({
-            Position = "Center",
-            Name = "Aim Bot Beta",
-            Icon = "solar:crosshair-bold",
-            Box = true,
-            BoxBorder = true,
-            Opened = true,
-        })
-        betaSection:AddToggle({
-            Default = false, Name = "Enable Aim Bot Beta", Flag = "AimBeta Enable",
-            Callback = function(v)
-                BetaAim.Enabled = v
-                if v then BetaStart() else BetaStop() end
-            end
-        })
-        betaSection:AddDropdown({
-            Name = "Target Type", Flag = "AimBeta Target Type",
-            Values = { "Killer", "Survivor", "Zombie", "All" },
-            Default = BetaAim.TargetType,
-            Callback = function(v)
-                if type(v) == "table" then v = v[1] end
-                BetaAim.TargetType = v or "Killer"
-                BetaTarget = nil
-                A2_Set("BetaTargetType", BetaAim.TargetType)
-            end
-        })
-
-        -- pilih target spesifik (pakai dropdown UI library A2)
-        local function betaPlayerList()
-            local list = { "None" }
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer then table.insert(list, p.Name) end
-            end
-            return list
-        end
-        local betaPlayerDrop = betaSection:AddDropdown({
-            Name = "Target Player", Flag = "AimBeta Target Player",
-            Values = betaPlayerList(),
-            Default = (BetaAim.SpecificName ~= "" and BetaAim.SpecificName) or "None",
-            Callback = function(v)
-                if type(v) == "table" then v = v[1] end
-                BetaAim.SpecificName = (v == nil or v == "None") and "" or v
-                BetaTarget = nil
-                A2_Set("BetaSpecific", BetaAim.SpecificName)
-            end
-        })
-        betaSection:AddButton({
-            Name = "Refresh Target List",
-            Callback = function()
-                if betaPlayerDrop and betaPlayerDrop.SetValues then
-                    betaPlayerDrop:SetValues(betaPlayerList())
-                end
-                VD_Notify("Aim Bot Beta", "List player diperbarui", 2)
-            end
-        })
-
-        betaSection:AddDropdown({
-            Name = "Metode (aktif hanya di POV)", Flag = "AimBeta Method",
-            Values = { "Laser", "Lock Cam", "Laser + Lock Cam", "Silent (No Visual)" },
-            Default = BetaAim.Method,
-            Callback = function(v)
-                if type(v) == "table" then v = v[1] end
-                BetaAim.Method = v or "Laser"
-                A2_Set("BetaMethod", BetaAim.Method)
-            end
-        })
-        betaSection:AddSlider({
-            Name = "FOV Radius (POV)", Flag = "AimBeta FOV",
-            Min = 40, Max = 500, Default = BetaAim.FOVRadius, Increment = 5,
-            Callback = function(v) BetaAim.FOVRadius = v A2_Set("BetaFOV", v) end
-        })
-        betaSection:AddToggle({
-            Default = BetaAim.ShowFOV, Name = "Show FOV Circle", Flag = "AimBeta Show FOV",
-            Callback = function(v)
-                BetaAim.ShowFOV = v
-                A2_Set("BetaShowFOV", v)
-                if BetaFOVFrame then BetaFOVFrame.Visible = v and BetaAim.Enabled end
-            end
-        })
-        betaSection:AddSlider({
-            Name = "Max Distance (studs)", Flag = "AimBeta Max Distance",
-            Min = 100, Max = 2000, Default = BetaAim.MaxDistance, Increment = 25,
-            Callback = function(v) BetaAim.MaxDistance = v A2_Set("BetaMaxDistance", v) end
-        })
-        betaSection:AddToggle({
-            Default = BetaAim.Prediction, Name = "Prediction", Flag = "AimBeta Prediction",
-            Callback = function(v) BetaAim.Prediction = v A2_Set("BetaPredict", v) end
-        })
-        betaSection:AddToggle({
-            Default = BetaAim.AutoShoot, Name = "Auto Shoot", Flag = "AimBeta Auto Shoot",
-            Callback = function(v) BetaAim.AutoShoot = v A2_Set("BetaAutoShoot", v) end
-        })
-        betaSection:AddSlider({
-            Name = "Fire Delay (detik)", Flag = "AimBeta Fire Delay",
-            Min = 0.05, Max = 1, Default = BetaAim.FireDelay, Increment = 0.05,
-            Callback = function(v) BetaAim.FireDelay = v A2_Set("BetaFireDelay", v) end
-        })
-
         -- Parry tab (dedicated menu, own icon)
         local ParryTabbox = addCenterFeatureTabbox(Tabs.Parry, "Parry", {
             { Key = "AutoParry", Name = "Auto Parry", Icon = "solar:sword-bold" },
@@ -5427,26 +4963,6 @@ local function __ZiaanHub_Init_Main__()
                         Window.ConfigElements["Auto Parry"]:Set(VD.SURV_AutoParry)
                     end
                 end)
-            end
-        })
-
-        pcall(function() parrySection:AddDivider({ Text = "Moonwalk" }) end)
-        parrySection:AddSlider({
-            Name = "Moonwalk Sway Speed",
-            Flag = "Moonwalk Sway Speed",
-            Min = 1, Max = 60, Default = Moon.SwaySpeed, Increment = 1,
-            Callback = function(v)
-                Moon.SwaySpeed = v
-                A2_Set("MoonSpeed", v)
-            end
-        })
-        parrySection:AddToggle({
-            Name = "Moonwalk (buka panel ON/OFF)",
-            Flag = "Moonwalk Enable",
-            Default = false,
-            Callback = function(v)
-                MoonEnableFeature(v)
-                if v then VD_Notify("Moonwalk", "Panel mini aktif — tekan ON untuk jalan", 2) end
             end
         })
 
@@ -7123,8 +6639,8 @@ do
         local ok = pcall(function()
             if writefile then writefile(profilePath(name), HttpService:JSONEncode(serialize())) end
         end)
-        if ok then notify("A2", "Config tersimpan: " .. name)
-        else notify("A2", "Gagal menyimpan config") end
+        if ok then notify("NO MERCY", "Config tersimpan: " .. name)
+        else notify("NO MERCY", "Gagal menyimpan config") end
     end
 
     local function loadProfile(name)
@@ -7139,9 +6655,9 @@ do
         end)
         if ok then
             getgenv().NM_CurrentProfile = name
-            notify("A2", "Config dimuat: " .. name .. " (reload UI untuk sinkron penuh)")
+            notify("NO MERCY", "Config dimuat: " .. name .. " (reload UI untuk sinkron penuh)")
         else
-            notify("A2", "Config tidak ditemukan: " .. tostring(name))
+            notify("NO MERCY", "Config tidak ditemukan: " .. tostring(name))
         end
     end
 
@@ -7198,7 +6714,7 @@ do
         Callback = function()
             local json = HttpService:JSONEncode(serialize())
             if setclipboard then setclipboard(json) end
-            notify("A2", "Config JSON di-copy ke clipboard")
+            notify("NO MERCY", "Config JSON di-copy ke clipboard")
         end,
     })
 
@@ -7214,7 +6730,7 @@ do
                 local data = HttpService:JSONDecode(importBuffer)
                 for k, v in pairs(data) do VD[k] = v end
             end)
-            notify("A2", ok and "Config berhasil di-import" or "JSON tidak valid")
+            notify("NO MERCY", ok and "Config berhasil di-import" or "JSON tidak valid")
         end,
     })
     ShareSec:AddButton({
@@ -7222,7 +6738,7 @@ do
         Callback = function()
             local json = HttpService:JSONEncode({ hub = "NoMercyViolence", profile = getgenv().NM_CurrentProfile, data = serialize() })
             if setclipboard then setclipboard(json) end
-            notify("A2", "Share code di-copy")
+            notify("NO MERCY", "Share code di-copy")
         end,
     })
     ShareSec:AddButton({
@@ -7232,7 +6748,7 @@ do
                 local tv = typeof(v)
                 if tv == "boolean" then VD[k] = false end
             end
-            notify("A2", "Config direset — reload script disarankan")
+            notify("NO MERCY", "Config direset — reload script disarankan")
         end,
     })
 
@@ -7262,3 +6778,65 @@ do
 end
 
 OrionLib:Init()
+
+-- ============================================================
+--  APPLY AUTO-SAVE (terapkan nilai tersimpan ke fitur)
+-- ============================================================
+pcall(function()
+    if getgenv().NM_ApplyAutoSave then getgenv().NM_ApplyAutoSave() end
+end)
+
+-- ============================================================
+--  TEXT STYLE: Putih Bersih + Pendar Biru Neon
+-- ============================================================
+local NM_TEXT_BASE  = Color3.fromRGB(240, 240, 240)
+local NM_TEXT_GLOW  = Color3.fromRGB(100, 210, 255)
+
+local function NM_StyleText(obj)
+    if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+    pcall(function()
+        obj.TextColor3 = NM_TEXT_BASE
+        local glow = obj:FindFirstChild("NM_Glow")
+        if not glow then
+            glow = Instance.new("UIStroke")
+            glow.Name = "NM_Glow"
+            glow.Parent = obj
+        end
+        glow.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+        glow.Color = NM_TEXT_GLOW
+        glow.Thickness = 1.4
+        glow.Transparency = 0.35
+    end)
+end
+
+task.spawn(function()
+    local holder = GetHolder and GetHolder() or game:GetService("CoreGui")
+    local root = holder and holder:FindFirstChild("MarV")
+    for _ = 1, 40 do
+        if root then break end
+        task.wait(0.15)
+        root = holder and holder:FindFirstChild("MarV")
+    end
+    if not root then return end
+
+    for _, v in ipairs(root:GetDescendants()) do NM_StyleText(v) end
+    root.DescendantAdded:Connect(function(v)
+        task.defer(NM_StyleText, v)
+    end)
+
+    -- pendar berdenyut halus
+    local TS = game:GetService("TweenService")
+    local up = true
+    while root.Parent do
+        for _, v in ipairs(root:GetDescendants()) do
+            local g = v:FindFirstChild("NM_Glow")
+            if g and g:IsA("UIStroke") then
+                TS:Create(g, TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    Transparency = up and 0.15 or 0.55,
+                }):Play()
+            end
+        end
+        up = not up
+        task.wait(1.2)
+    end
+end)
