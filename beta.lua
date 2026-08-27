@@ -6787,7 +6787,7 @@ pcall(function()
 end)
 
 -- ============================================================
---  TEXT STYLE: Putih Bersih + Pendar Biru Neon
+--  TEXT STYLE: Putih Bersih + Pendar Biru Neon (Modern Static Glow)
 -- ============================================================
 local NM_TEXT_BASE  = Color3.fromRGB(240, 240, 240)
 local NM_TEXT_GLOW  = Color3.fromRGB(100, 210, 255)
@@ -6796,6 +6796,7 @@ local function NM_StyleText(obj)
     if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
     pcall(function()
         obj.TextColor3 = NM_TEXT_BASE
+        -- inner crisp neon outline
         local glow = obj:FindFirstChild("NM_Glow")
         if not glow then
             glow = Instance.new("UIStroke")
@@ -6804,8 +6805,20 @@ local function NM_StyleText(obj)
         end
         glow.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
         glow.Color = NM_TEXT_GLOW
-        glow.Thickness = 1.4
-        glow.Transparency = 0.35
+        glow.Thickness = 1.5
+        glow.Transparency = 0.12
+
+        -- outer soft halo (no animation, clean modern layered look)
+        local halo = obj:FindFirstChild("NM_Halo")
+        if not halo then
+            halo = Instance.new("UIStroke")
+            halo.Name = "NM_Halo"
+            halo.Parent = obj
+        end
+        halo.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+        halo.Color = NM_TEXT_GLOW
+        halo.Thickness = 2.8
+        halo.Transparency = 0.72
     end)
 end
 
@@ -6823,20 +6836,4 @@ task.spawn(function()
     root.DescendantAdded:Connect(function(v)
         task.defer(NM_StyleText, v)
     end)
-
-    -- pendar berdenyut halus
-    local TS = game:GetService("TweenService")
-    local up = true
-    while root.Parent do
-        for _, v in ipairs(root:GetDescendants()) do
-            local g = v:FindFirstChild("NM_Glow")
-            if g and g:IsA("UIStroke") then
-                TS:Create(g, TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                    Transparency = up and 0.15 or 0.55,
-                }):Play()
-            end
-        end
-        up = not up
-        task.wait(1.2)
-    end
 end)
