@@ -4709,13 +4709,103 @@ local function __ZiaanHub_Init_Main__()
             Callback = function(v) pcall(setInvisible, v) end
         })
 
+        -- GHOST MODE (server-side hide: badan asli dipindah jauh, kamera tetap di map)
+        VD.GHOST_Depth = VD.GHOST_Depth or 600
+        local ghostConn, ghostRespawn = nil, nil
+        local ghostNoclipCache = {}
+
+        local function ghostRestoreCollisions()
+            for part, canCollide in pairs(ghostNoclipCache) do
+                pcall(function() if part.Parent then part.CanCollide = canCollide end end)
+            end
+            ghostNoclipCache = {}
+        end
+
+        local function setGhostMode(on)
+            VD.GHOST_Enabled = on
+            if ghostConn then pcall(function() ghostConn:Disconnect() end) ghostConn = nil end
+            if ghostRespawn then pcall(function() ghostRespawn:Disconnect() end) ghostRespawn = nil end
+
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+            if not on then
+                ghostRestoreCollisions()
+                if hum then pcall(function() hum.CameraOffset = Vector3.new(0, 0, 0) end) end
+                VD_Notify("Ghost Mode", "Dimatikan — badan kembali ke permukaan", 3)
+                return
+            end
+
+            local function bind(character)
+                local h = character:WaitForChild("Humanoid", 5)
+                local root = character:WaitForChild("HumanoidRootPart", 5)
+                if not h or not root then return end
+
+                local depth = VD.GHOST_Depth
+                local baseY = root.Position.Y
+                local targetY = baseY - depth
+
+                for _, v in ipairs(character:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        ghostNoclipCache[v] = v.CanCollide
+                        pcall(function() v.CanCollide = false end)
+                    end
+                end
+                pcall(function() h.CameraOffset = Vector3.new(0, depth, 0) end)
+
+                if ghostConn then pcall(function() ghostConn:Disconnect() end) end
+                ghostConn = RunService.Stepped:Connect(function()
+                    if not VD.GHOST_Enabled or VD.Destroyed then return end
+                    if not root.Parent then return end
+                    local cf = root.CFrame
+                    -- tahan Y di bawah map, XZ & rotasi tetap ikut input pemain
+                    root.CFrame = CFrame.new(cf.X, targetY, cf.Z) * (cf - cf.Position)
+                    root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+                    for part, _ in pairs(ghostNoclipCache) do
+                        if part.Parent and part.CanCollide then part.CanCollide = false end
+                    end
+                end)
+            end
+
+            pcall(function() if char then bind(char) end end)
+            ghostRespawn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+                task.wait(1)
+                if VD.GHOST_Enabled then pcall(bind, newChar) end
+            end)
+
+            VD_Notify("Ghost Mode", "Aktif — pemain lain tidak melihat kamu (badan di bawah map). Matikan dulu kalau mau buka gate/exit.", 6)
+        end
+
+        protSection:AddToggle({
+            Default = VD.GHOST_Enabled,
+            Name = "Ghost Mode (Orang Lain Tidak Bisa Lihat)",
+            Flag = "Ghost Mode",
+            Callback = function(v) pcall(setGhostMode, v) end
+        })
+
+        protSection:AddSlider({
+            Name = "Ghost Depth (studs)",
+            Flag = "Ghost Depth",
+            Min = 200,
+            Max = 2000,
+            Default = VD.GHOST_Depth,
+            Increment = 50,
+            ValueName = "studs",
+            Callback = function(v)
+                VD.GHOST_Depth = v
+                if VD.GHOST_Enabled then pcall(setGhostMode, false) pcall(setGhostMode, true) end
+            end
+        })
+
         protSection:AddButton({
-            Name = "Re-Apply God Mode + Invisible",
+            Name = "Re-Apply God Mode + Invisible + Ghost",
             Callback = function()
                 if VD.GOD_Mode then pcall(setGodMode, true) end
                 if VD.INVIS_Enabled then pcall(setPartsInvisible, nil, true) end
+                if VD.GHOST_Enabled then pcall(setGhostMode, true) end
             end
         })
+
 
 
 
