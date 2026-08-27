@@ -521,8 +521,9 @@ do
 
     -- satu loop global: kilau slow-motion smooth menyapu lalu hilang
     task.spawn(function()
-        local SWEEP = 2.6
-        local REST = 0.9
+        local SWEEP = 7.5
+        local REST = 2.8
+
         local info = TweenInfo.new(SWEEP, Enum.EasingStyle.Cubic, Enum.EasingDirection.InOut)
         while not VD.Destroyed do
             for i = #shimmerList, 1, -1 do
@@ -587,7 +588,71 @@ local function NM_Register(flag, element)
     if flag and element then NM_ConfigElements[flag] = element end
 end
 
+-- ============================================================
+--  AUTO-SAVE GLOBAL (semua toggle / slider / dropdown)
+--  Setiap kali fitur diaktifkan/diubah -> otomatis tersimpan.
+--  Saat script di-execute lagi, semua setting dimuat kembali.
+-- ============================================================
+local A2_HttpService = game:GetService("HttpService")
+local A2_STORE_FILE = "A2_ViolenceDistrict_prefs.json"
+A2_PREFS = {}
+pcall(function()
+    if readfile and isfile and isfile(A2_STORE_FILE) then
+        local data = A2_HttpService:JSONDecode(readfile(A2_STORE_FILE))
+        if type(data) == "table" then A2_PREFS = data end
+    end
+end)
+
+local A2_SaveQueued = false
+local A2_LastToast = 0
+function A2_PrefSave(silent)
+    if not silent then
+        local now = tick()
+        if now - A2_LastToast > 1.2 then
+            A2_LastToast = now
+            pcall(NM_Notify, "Config", "Save ✓", 1)
+        end
+    end
+    if A2_SaveQueued then return end
+    A2_SaveQueued = true
+    task.delay(0.35, function()
+        A2_SaveQueued = false
+        pcall(function()
+            if writefile then writefile(A2_STORE_FILE, A2_HttpService:JSONEncode(A2_PREFS)) end
+        end)
+    end)
+end
+
+function A2_PrefSet(key, value, silent)
+    if key == nil then return end
+    A2_PREFS[key] = value
+    A2_PrefSave(silent)
+end
+
+function A2_PrefGet(key, fallback)
+    if key == nil then return fallback end
+    local v = A2_PREFS[key]
+    if v == nil then return fallback end
+    return v
+end
+
+local function A2_UIKey(cfg, kind)
+    local name = cfg and (cfg.Flag or cfg.Name)
+    if not name then return nil end
+    return "UI::" .. kind .. "::" .. tostring(name)
+end
+
+local A2_LoadToastDone = false
+local function A2_LoadToast()
+    if A2_LoadToastDone then return end
+    A2_LoadToastDone = true
+    task.delay(2.5, function()
+        pcall(NM_Notify, "Config", "Save Load ✓", 3)
+    end)
+end
+
 local NM_MakeSection
+
 
 local function NM_KeyCodeFromString(str)
     if typeof(str) == "EnumItem" then return str end
@@ -627,40 +692,62 @@ NM_MakeSection = function(orionTab, sectionName)
 
     function self:AddToggle(cfg)
         cfg = cfg or {}
+        local key = A2_UIKey(cfg, "toggle")
+        local saved = A2_PrefGet(key, nil)
+        local startVal = (saved ~= nil) and (saved and true or false) or (cfg.Default and true or false)
         local element
         pcall(function()
             element = sec:AddToggle({
                 Name = cfg.Name or "Toggle",
-                Default = cfg.Default and true or false,
+                Default = startVal,
                 Callback = function(v)
+                    A2_PrefSet(key, v and true or false)
                     if cfg.Callback then pcall(cfg.Callback, v) end
                 end,
             })
         end)
         NM_Register(cfg.Flag or cfg.Name, element)
+        -- restore state fitur saat script dijalankan ulang
+        if saved ~= nil and startVal then
+            A2_LoadToast()
+            task.delay(1.2, function()
+                if cfg.Callback then pcall(cfg.Callback, true) end
+            end)
+        end
         return element
     end
 
     function self:AddSlider(cfg)
         cfg = cfg or {}
+        local key = A2_UIKey(cfg, "slider")
+        local saved = tonumber(A2_PrefGet(key, nil))
+        local startVal = saved or cfg.Default or cfg.Min or 0
         local element
         pcall(function()
             element = sec:AddSlider({
                 Name = cfg.Name or "Slider",
                 Min = cfg.Min or 0,
                 Max = cfg.Max or 100,
-                Default = cfg.Default or cfg.Min or 0,
+                Default = startVal,
                 Increment = cfg.Increment or 1,
                 ValueName = cfg.Suffix or "",
                 Color = Color3.fromRGB(200, 200, 200),
                 Callback = function(v)
+                    A2_PrefSet(key, v, true)
                     if cfg.Callback then pcall(cfg.Callback, v) end
                 end,
             })
         end)
         NM_Register(cfg.Flag or cfg.Name, element)
+        if saved ~= nil then
+            A2_LoadToast()
+            task.delay(1.2, function()
+                if cfg.Callback then pcall(cfg.Callback, saved) end
+            end)
+        end
         return element
     end
+
 
     function self:AddButton(cfg)
         cfg = cfg or {}
@@ -679,6 +766,7 @@ NM_MakeSection = function(orionTab, sectionName)
     function self:AddDropdown(cfg)
         cfg = cfg or {}
         local values = cfg.Values or cfg.Options or {}
+        local key = A2_UIKey(cfg, "dropdown")
 
         if cfg.Multi then
             -- Orion tidak punya multi-select: pakai toggle per opsi
@@ -686,6 +774,15 @@ NM_MakeSection = function(orionTab, sectionName)
             pcall(function() sec:AddLabel(cfg.Name or "Options") end)
             if type(cfg.Default) == "table" then
                 for _, v in pairs(cfg.Default) do state[v] = true end
+            end
+            local savedMulti = A2_PrefGet(key, nil)
+            local hadSaved = false
+            if type(savedMulti) == "table" then
+                for k in pairs(state) do state[k] = false end
+                for k, v in pairs(savedMulti) do
+                    if type(k) == "number" then state[v] = true else state[k] = v and true or false end
+                end
+                hadSaved = true
             end
             local api = { __state = state }
             for _, option in ipairs(values) do
@@ -695,6 +792,9 @@ NM_MakeSection = function(orionTab, sectionName)
                         Default = state[option] and true or false,
                         Callback = function(v)
                             state[option] = v
+                            local store = {}
+                            for k, val in pairs(state) do store[k] = val and true or false end
+                            A2_PrefSet(key, store)
                             if cfg.Callback then pcall(cfg.Callback, state) end
                         end,
                     })
@@ -710,12 +810,24 @@ NM_MakeSection = function(orionTab, sectionName)
             end
             function api:SetValues() end
             NM_Register(cfg.Flag or cfg.Name, api)
+            if hadSaved then
+                A2_LoadToast()
+                task.delay(1.2, function()
+                    if cfg.Callback then pcall(cfg.Callback, state) end
+                end)
+            end
             return api
         end
 
         local default = cfg.Default
         if type(default) == "table" then default = default[1] end
         if default == nil then default = values[1] end
+        local savedVal = A2_PrefGet(key, nil)
+        if type(savedVal) == "string" then
+            for _, v in ipairs(values) do
+                if v == savedVal then default = savedVal break end
+            end
+        end
 
         local element
         pcall(function()
@@ -724,10 +836,21 @@ NM_MakeSection = function(orionTab, sectionName)
                 Default = default,
                 Options = values,
                 Callback = function(v)
+                    local sv = v
+                    if type(sv) == "table" then sv = sv[1] end
+                    if type(sv) == "string" then A2_PrefSet(key, sv) end
                     if cfg.Callback then pcall(cfg.Callback, v) end
                 end,
             })
         end)
+
+        if type(savedVal) == "string" and savedVal == default then
+            A2_LoadToast()
+            task.delay(1.2, function()
+                if cfg.Callback then pcall(cfg.Callback, savedVal) end
+            end)
+        end
+
 
         local api = {}
         function api:Set(v) pcall(function() element:Set(v) end) end
@@ -884,34 +1007,14 @@ local function __ZiaanHub_Init_Main__()
     -- ============================================================
     --  AUTO-SAVE RINGAN (warna ESP, aim bot, moonwalk)
     -- ============================================================
-    local A2_STORE_FILE = "A2_ViolenceDistrict_prefs.json"
-    local A2_Prefs = {}
-    pcall(function()
-        if readfile and isfile and isfile(A2_STORE_FILE) then
-            local data = HttpService:JSONDecode(readfile(A2_STORE_FILE))
-            if type(data) == "table" then A2_Prefs = data end
-        end
-    end)
-    local A2_SaveQueued = false
-    local function A2_Save()
-        if A2_SaveQueued then return end
-        A2_SaveQueued = true
-        task.delay(0.35, function()
-            A2_SaveQueued = false
-            pcall(function()
-                if writefile then writefile(A2_STORE_FILE, HttpService:JSONEncode(A2_Prefs)) end
-            end)
-        end)
-    end
+    -- memakai store global (satu file, tidak saling menimpa)
     local function A2_Set(key, value)
-        A2_Prefs[key] = value
-        A2_Save()
+        A2_PrefSet(key, value, true)
     end
     local function A2_Get(key, fallback)
-        local v = A2_Prefs[key]
-        if v == nil then return fallback end
-        return v
+        return A2_PrefGet(key, fallback)
     end
+
 
 
     -- ============================================================
