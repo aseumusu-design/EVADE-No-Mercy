@@ -1,6 +1,19 @@
--- A2 ModernV2 UI Library Template
--- Empty UI shell: Info, Main, Visual, Teleport, Settings
--- The original feature script is not included in this file.
+if type(getgenv) ~= "function" then
+    local __A2Global = _G;
+    getgenv = function() return __A2Global end;
+end;
+local __A2ExistingTemplate = getgenv().A2ModernV2Template;
+if __A2ExistingTemplate and __A2ExistingTemplate.Build == "AimVeilPredicSpear" and __A2ExistingTemplate.Window and __A2ExistingTemplate.Window.Root and __A2ExistingTemplate.Window.Root.Parent then
+    pcall(function() __A2ExistingTemplate.Window:ToggleInterface() end);
+    return __A2ExistingTemplate.Window;
+end;
+if __A2ExistingTemplate and __A2ExistingTemplate.Window then
+    pcall(function()
+        if __A2ExistingTemplate.Window.Destroy then
+            __A2ExistingTemplate.Window:Destroy();
+        end;
+    end);
+end;
 
 local __A2PreviousAutoWindow = getgenv().MODERNV2_AUTO_WINDOW;
 getgenv().MODERNV2_AUTO_WINDOW = false;
@@ -7002,6 +7015,7 @@ function ModernV2:RegisiterItem(Frame: Frame , Signel)
 		ProgressFrame.Parent = Frame
 		ProgressFrame.BackgroundColor3 = Color3.fromRGB(25, 27, 33)
 		ProgressFrame.BackgroundTransparency = 1.000
+		ProgressFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		ProgressFrame.BorderSizePixel = 0
 		ProgressFrame.ClipsDescendants = true
 		ProgressFrame.Size = UDim2.new(1, 0, 0, 45)
@@ -7172,6 +7186,7 @@ function ModernV2:RegisiterItem(Frame: Frame , Signel)
 		CodeFrame.Parent = Frame
 		CodeFrame.BackgroundColor3 = Color3.fromRGB(25, 27, 33)
 		CodeFrame.BackgroundTransparency = 1.000
+		CodeFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		CodeFrame.BorderSizePixel = 0
 		CodeFrame.ClipsDescendants = true
 		CodeFrame.Size = UDim2.new(1, 0, 0, 60)
@@ -14879,25 +14894,9 @@ end;
 local ModernV2API = __ModernV2Factory();
 getgenv().MODERNV2_AUTO_WINDOW = __A2PreviousAutoWindow;
 
-local UIState = {
-    Area = "All areas",
-    EggType = "Any",
-    MinimumWeight = 0,
-    ShowStats = true,
-    ShowPlotTimers = true,
-    UIScale = 100,
-    Theme = "Dark",
-};
-
-local function remember(key)
-    return function(value)
-        UIState[key] = value;
-    end;
-end;
-
 local A2Window = ModernV2API:CreateWindow({
-    Name = "Kira Hub",
-    Content = "Steal an Egg · A2 Modern UI",
+    Name = "A2",
+    Content = "A2 UI Library Template",
     Logo = "rbxassetid://126710436488213",
     ConfigEnabled = false,
     Search = true,
@@ -14906,118 +14905,501 @@ local A2Window = ModernV2API:CreateWindow({
     Keybind = "RightControl",
 });
 
-local InfoTab = A2Window:AddTab({ Name = "About", Icon = "circle-i", Type = "Single" });
-local InfoSection = InfoTab:AddSection({ Name = "Kira Hub", Position = "Center", Box = true });
+-- Menu 1: Info (kept as the A2 information page).
+local InfoTab = A2Window:AddTab({
+    Name = "Info",
+    Icon = "circle-i",
+    Type = "Single",
+});
+local InfoSection = InfoTab:AddSection({
+    Name = "A2 Information",
+    Position = "Center",
+    Box = true,
+});
 InfoSection:AddImage({
-    Name = "Kira Hub Banner",
+    Name = "A2 Banner",
     Image = "117118608066997",
     Height = 150,
     ScaleType = Enum.ScaleType.Fit,
 });
+local DiscordLink = "https://discord.gg/pbg6g79Hp";
 InfoSection:AddParagraph({
-    Name = "A2 Modern port",
-    Content = "Tampilan Kira Hub sudah dipindahkan ke A2 ModernV2. File ini hanya berisi UI dan state lokal; tidak ada otomatisasi, bypass, remote call, webhook, atau teleport.",
+    Name = "Discord",
+    Content = "Join Discord A2:\n" .. DiscordLink,
 });
-InfoSection:AddParagraph({
-    Name = "Status",
-    Content = "UI shell ready · Right Control untuk buka/tutup menu",
-});
-
-local MainTab = A2Window:AddTab({ Name = "Main", Icon = "house", Type = "Single" });
-local FilterSection = MainTab:AddSection({ Name = "Egg filters", Position = "Left", Box = true });
-FilterSection:AddDropdown({
-    Name = "Area",
-    Values = { "All areas", "Spawn", "Forest", "Desert", "Snow" },
-    Default = "All areas",
-    Callback = remember("Area"),
-});
-FilterSection:AddDropdown({
-    Name = "Egg type",
-    Values = { "Any", "Common", "Rare", "Epic", "Legendary" },
-    Default = "Any",
-    Callback = remember("EggType"),
-});
-FilterSection:AddSlider({
-    Name = "Minimum weight",
-    Min = 0,
-    Max = 100,
-    Default = 0,
-    Rounding = 0,
-    Type = " kg",
-    Callback = remember("MinimumWeight"),
-});
-local MainStatus = MainTab:AddSection({ Name = "Status", Position = "Right", Box = true });
-MainStatus:AddParagraph({ Name = "UI only", Content = "Kontrol filter hanya menyimpan pilihan di UI dan tidak mengubah permainan." });
-MainStatus:AddButton({
-    Name = "Reset filters",
-    Icon = "rotate-ccw",
+InfoSection:AddButton({
+    Name = "Copy Discord Link",
+    Icon = "discord",
     Callback = function()
-        UIState.Area = "All areas";
-        UIState.EggType = "Any";
-        UIState.MinimumWeight = 0;
+        local writer = setclipboard or toclipboard or set_clipboard or (syn and syn.write_clipboard);
+        if writer then pcall(function() writer(DiscordLink) end) end;
     end,
 });
 
-local PlotTab = A2Window:AddTab({ Name = "Plot", Icon = "layout-grid", Type = "Single" });
-local PlotSection = PlotTab:AddSection({ Name = "Plot display", Position = "Center", Box = true });
-PlotSection:AddToggle({ Name = "Show hatch timers", Default = true, Callback = remember("ShowPlotTimers") });
-PlotSection:AddToggle({ Name = "Show earnings labels", Default = false, Callback = remember("ShowEarnings") });
-PlotSection:AddDropdown({
-    Name = "Sort preview",
-    Values = { "Best first", "Lowest first", "Name" },
-    Default = "Best first",
-    Callback = remember("PlotSort"),
-});
-PlotSection:AddParagraph({ Name = "Display only", Content = "Pilihan ini disiapkan untuk tampilan plot lokal dan belum terhubung ke logika permainan." });
+-- Empty menu tabs: only the shell is present; no feature logic is attached.
+local function AddEmptyTab(name, icon)
+    local tab = A2Window:AddTab({ Name = name, Icon = icon, Type = "Single" });
+    local section = tab:AddSection({ Name = name, Position = "Center", Box = true });
+    section:AddParagraph({ Name = "Template kosong", Content = "Belum ada fitur di menu ini." });
+    return tab;
+end;
 
-local VisualTab = A2Window:AddTab({ Name = "Visual", Icon = "eye", Type = "Single" });
-local VisualSection = VisualTab:AddSection({ Name = "Panels", Position = "Left", Box = true });
-VisualSection:AddToggle({ Name = "Show stats panel", Default = true, Callback = remember("ShowStats") });
-VisualSection:AddToggle({ Name = "Compact stats", Default = false, Callback = remember("CompactStats") });
-local PerformanceSection = VisualTab:AddSection({ Name = "Performance display", Position = "Right", Box = true });
-PerformanceSection:AddToggle({ Name = "Show FPS", Default = false, Callback = remember("ShowFPS") });
-PerformanceSection:AddSlider({
-    Name = "Panel opacity",
-    Min = 25,
-    Max = 100,
-    Default = 90,
-    Rounding = 0,
-    Type = "%",
-    Callback = remember("PanelOpacity"),
-});
+local MainTab = AddEmptyTab("Main", "house");
+local VisualTab = AddEmptyTab("Visual", "eye");
 
-local SettingsTab = A2Window:AddTab({ Name = "Settings", Icon = "gear", Type = "Single" });
-local AppearanceSection = SettingsTab:AddSection({ Name = "Appearance", Position = "Left", Box = true });
-AppearanceSection:AddDropdown({
-    Name = "Theme",
-    Values = { "Dark", "Light" },
-    Default = "Dark",
-    Callback = remember("Theme"),
-});
-AppearanceSection:AddSlider({
-    Name = "UI scale",
-    Min = 75,
-    Max = 125,
-    Default = 100,
-    Rounding = 0,
-    Type = "%",
-    Callback = remember("UIScale"),
-});
-AppearanceSection:AddToggle({ Name = "Start minimised", Default = false, Callback = remember("StartMinimised") });
-local ControlsSection = SettingsTab:AddSection({ Name = "Controls", Position = "Right", Box = true });
-ControlsSection:AddKeybind({ Name = "Open / close", Default = "RightControl", Callback = remember("OpenKey") });
-ControlsSection:AddButton({
-    Name = "Reset UI settings",
-    Icon = "rotate-ccw",
-    Callback = function()
-        UIState.UIScale = 100;
-        UIState.Theme = "Dark";
-        UIState.StartMinimised = false;
-    end,
-});
-ControlsSection:AddParagraph({ Name = "Safe shell", Content = "Feature callbacks sengaja tidak disertakan. Hubungkan hanya ke sistem game milikmu sendiri di Roblox Studio." });
+-- =====================================================================
+-- AIM VEIL — PREDIC SPEAR (FULL ENHANCED)
+-- + ESP Box, Trajectory Line, Impact Cross, Real-time Info Display
+-- =====================================================================
+local A2VeilConfig = {
+    Enabled = false,
+    ShowFOV = true,
+    FOV = 150,
+    SpearSpeed = 165,
+    Gravity = math.max(0, (workspace.Gravity or 196.2) * 0.5),
+    AutoGravity = true,
+    AutoPredict = true,
+    MaxDist = 200,
+    TargetPart = "Torso",
+    LeadMultiplier = 1.0,
+    CloseRange = 15,
+    ShowESP = true,
+    ShowTrajectory = true,
+    ShowImpact = true,
+};
 
-local KiraMenuIcon = ModernV2API:CreateMenuIcon({
+local A2VeilState = {
+    Charging = false,
+    TouchInput = nil,
+    AttackCooldown = false,
+    SuppressNextThrow = false,
+    SuppressUntil = 0,
+    LastPredictedPos = nil,
+    LastPredictedUntil = 0,
+    Hooked = false,
+};
+local A2VeilVelocityCache = {};
+local A2VeilDrawingAvailable = false;
+pcall(function() A2VeilDrawingAvailable = typeof(Drawing) == "table" and type(Drawing.new) == "function" end);
+
+-- Drawing objects
+local A2VeilDraw = { Highlight = Instance.new("Highlight") };
+if A2VeilDrawingAvailable then
+    pcall(function()
+        A2VeilDraw.FOVCircle = Drawing.new("Circle");
+        A2VeilDraw.Tracer = Drawing.new("Circle");
+        A2VeilDraw.ESPBox = Drawing.new("Rectangle");
+        A2VeilDraw.ESPName = Drawing.new("Text");
+        A2VeilDraw.ESPDist = Drawing.new("Text");
+        A2VeilDraw.ImpactCross = Drawing.new("Circle");
+        A2VeilDraw.TrajectoryLines = {};
+        for i = 1, 20 do
+            local line = Drawing.new("Line");
+            line.Thickness = 2.5;
+            line.Color = Color3.fromRGB(255, 220, 100);
+            line.Transparency = 0.75;
+            A2VeilDraw.TrajectoryLines[i] = line;
+        end
+        A2VeilDraw.FOVCircle.Color = Color3.fromRGB(100, 210, 255);
+        A2VeilDraw.FOVCircle.Thickness = 1.5;
+        A2VeilDraw.FOVCircle.Filled = false;
+        A2VeilDraw.FOVCircle.Visible = false;
+        A2VeilDraw.Tracer.Thickness = 2;
+        A2VeilDraw.Tracer.Radius = 5;
+        A2VeilDraw.Tracer.Color = Color3.fromRGB(100, 210, 255);
+        A2VeilDraw.Tracer.Filled = true;
+        A2VeilDraw.Tracer.Visible = false;
+        A2VeilDraw.ESPBox.Thickness = 2;
+        A2VeilDraw.ESPBox.Color = Color3.fromRGB(100, 210, 255);
+        A2VeilDraw.ESPBox.Filled = false;
+        A2VeilDraw.ESPBox.Visible = false;
+        A2VeilDraw.ESPName.Color = Color3.fromRGB(255, 255, 255);
+        A2VeilDraw.ESPName.Size = 14;
+        A2VeilDraw.ESPName.Center = true;
+        A2VeilDraw.ESPName.Visible = false;
+        A2VeilDraw.ESPDist.Color = Color3.fromRGB(180, 220, 255);
+        A2VeilDraw.ESPDist.Size = 11;
+        A2VeilDraw.ESPDist.Center = true;
+        A2VeilDraw.ESPDist.Visible = false;
+        A2VeilDraw.ImpactCross.Color = Color3.fromRGB(255, 100, 100);
+        A2VeilDraw.ImpactCross.Thickness = 2;
+        A2VeilDraw.ImpactCross.Radius = 8;
+        A2VeilDraw.ImpactCross.Filled = false;
+        A2VeilDraw.ImpactCross.Visible = false;
+    end);
+end;
+A2VeilDraw.Highlight.Name = "A2_VeilTarget";
+A2VeilDraw.Highlight.FillColor = Color3.fromRGB(100, 210, 255);
+A2VeilDraw.Highlight.OutlineColor = Color3.fromRGB(255, 255, 255);
+A2VeilDraw.Highlight.FillTransparency = 0.55;
+A2VeilDraw.Highlight.OutlineTransparency = 0;
+
+local function A2VeilHideDrawings()
+    if A2VeilDraw.FOVCircle then A2VeilDraw.FOVCircle.Visible = false end;
+    if A2VeilDraw.Tracer then A2VeilDraw.Tracer.Visible = false end;
+    if A2VeilDraw.ESPBox then A2VeilDraw.ESPBox.Visible = false end;
+    if A2VeilDraw.ESPName then A2VeilDraw.ESPName.Visible = false end;
+    if A2VeilDraw.ESPDist then A2VeilDraw.ESPDist.Visible = false end;
+    if A2VeilDraw.ImpactCross then A2VeilDraw.ImpactCross.Visible = false end;
+    for _, line in ipairs(A2VeilDraw.TrajectoryLines or {}) do
+        line.Visible = false;
+    end
+    A2VeilDraw.Highlight.Parent = nil;
+end;
+
+local function A2VeilTargetPart(character)
+    if not character then return nil end;
+    if A2VeilConfig.TargetPart == "Head" then return character:FindFirstChild("Head") end;
+    if A2VeilConfig.TargetPart == "Root" then return character:FindFirstChild("HumanoidRootPart") end;
+    return character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart");
+end;
+
+local function A2VeilVelocity(part, playerName)
+    if not part then return Vector3.zero end;
+    local now = os.clock();
+    local assemblyVelocity = Vector3.zero;
+    pcall(function() assemblyVelocity = part.AssemblyLinearVelocity end);
+    local cache = A2VeilVelocityCache[playerName];
+    if not cache then
+        A2VeilVelocityCache[playerName] = { LastPos = part.Position, LastTime = now, Velocity = assemblyVelocity };
+        return assemblyVelocity;
+    end;
+    local dt = now - cache.LastTime;
+    local measured = Vector3.zero;
+    if dt > 0.01 then measured = (part.Position - cache.LastPos) / dt end;
+    if measured.Magnitude > 250 then measured = assemblyVelocity end;
+    local chosen = measured.Magnitude > 0.05 and measured or assemblyVelocity;
+    if chosen.Magnitude < 250 then cache.Velocity = cache.Velocity:Lerp(chosen, 0.45) end;
+    cache.LastPos = part.Position;
+    cache.LastTime = now;
+    return cache.Velocity;
+end;
+
+local function A2VeilClosestTarget()
+    local localCharacter = game:GetService("Players").LocalPlayer.Character;
+    local localRoot = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart");
+    local camera = workspace.CurrentCamera;
+    if not localRoot or not camera then return nil end;
+    local center = Vector2.new(camera.ViewportSize.X * 0.5, camera.ViewportSize.Y * 0.5);
+    local bestScreenDistance = A2VeilConfig.FOV;
+    local best = nil;
+    for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+        if player ~= game:GetService("Players").LocalPlayer and player.Team and player.Team.Name == "Survivors" and player.Character then
+            local character = player.Character;
+            local humanoid = character:FindFirstChildOfClass("Humanoid");
+            local part = A2VeilTargetPart(character);
+            if humanoid and humanoid.Health > 0 and part then
+                local distance3D = (part.Position - localRoot.Position).Magnitude;
+                if distance3D <= A2VeilConfig.MaxDist then
+                    local screen, onScreen = camera:WorldToViewportPoint(part.Position);
+                    if onScreen then
+                        local screenDistance = (Vector2.new(screen.X, screen.Y) - center).Magnitude;
+                        if screenDistance <= bestScreenDistance then
+                            bestScreenDistance = screenDistance;
+                            best = { Player = player, Part = part, Distance = distance3D };
+                        end;
+                    end;
+                end;
+            end;
+        end;
+    end;
+    return best;
+end;
+
+local function A2VeilBallisticDirection(startPosition, targetPosition, targetVelocity)
+    local speed = math.max(1, tonumber(A2VeilConfig.SpearSpeed) or 165);
+    local gravity = A2VeilConfig.AutoGravity and math.max(0, (workspace.Gravity or 196.2) * 0.5) or math.max(0, tonumber(A2VeilConfig.Gravity) or 0);
+    local lead = A2VeilConfig.AutoPredict and (tonumber(A2VeilConfig.LeadMultiplier) or 1) or 0;
+    local predicted = targetPosition;
+    local travelTime = (targetPosition - startPosition).Magnitude / speed;
+    local direction = (targetPosition - startPosition).Unit;
+    for _ = 1, 4 do
+        predicted = targetPosition + targetVelocity * travelTime * lead;
+        local offset = predicted - startPosition;
+        local distance = offset.Magnitude;
+        if distance <= A2VeilConfig.CloseRange then
+            return offset.Unit, predicted;
+        end;
+        local horizontal = Vector3.new(offset.X, 0, offset.Z);
+        local range = horizontal.Magnitude;
+        if range < 0.05 or gravity <= 0 then
+            direction = offset.Unit;
+        else
+            local speedSquared = speed * speed;
+            local discriminant = speedSquared * speedSquared - gravity * (gravity * range * range + 2 * offset.Y * speedSquared);
+            if discriminant <= 0 then
+                direction = offset.Unit;
+            else
+                local tangent = (speedSquared - math.sqrt(discriminant)) / (gravity * range);
+                local cosine = 1 / math.sqrt(1 + tangent * tangent);
+                direction = (horizontal.Unit * cosine + Vector3.new(0, tangent * cosine, 0)).Unit;
+            end;
+        end;
+        travelTime = distance / speed;
+    end;
+    return direction, predicted;
+end;
+
+local function A2VeilFire()
+    if not A2VeilConfig.Enabled or A2VeilState.AttackCooldown then return end;
+    local localPlayer = game:GetService("Players").LocalPlayer;
+    local character = localPlayer.Character;
+    if not character or character:GetAttribute("spearmode") ~= true then return end;
+    A2VeilState.AttackCooldown = true;
+    task.delay(0.18, function() A2VeilState.AttackCooldown = false end);
+    local startPart = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart");
+    if not startPart then return end;
+    local startPosition = startPart.Position;
+    local target = A2VeilClosestTarget();
+    local aimDirection = workspace.CurrentCamera.CFrame.LookVector;
+    if target and target.Part then
+        local velocity = A2VeilVelocity(target.Part, target.Player.Name);
+        aimDirection, A2VeilState.LastPredictedPos = A2VeilBallisticDirection(startPosition, target.Part.Position, velocity);
+        A2VeilState.LastPredictedUntil = os.clock() + 1.25;
+    else
+        A2VeilState.LastPredictedPos = nil;
+        A2VeilState.LastPredictedUntil = 0;
+    end;
+    A2VeilState.SuppressNextThrow = true;
+    A2VeilState.SuppressUntil = os.clock() + 0.35;
+    pcall(function()
+        local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes");
+        local killers = remotes and remotes:FindFirstChild("Killers");
+        local veil = killers and killers:FindFirstChild("Veil");
+        local spearThrow = veil and veil:FindFirstChild("Spearthrow");
+        if spearThrow then spearThrow:FireServer(aimDirection, A2VeilConfig.SpearSpeed, startPosition) end;
+    end);
+    task.delay(0.4, function() A2VeilState.SuppressNextThrow = false end);
+end;
+
+if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" then
+    pcall(function()
+        local oldNamecall;
+        oldNamecall = hookmetamethod(game, "__namecall", (newcclosure or function(fn) return fn end)(function(self, ...) 
+            if getnamecallmethod() == "FireServer" and self.Name == "Spearthrow" and A2VeilState.SuppressNextThrow and os.clock() <= A2VeilState.SuppressUntil then
+                if type(checkcaller) == "function" and not checkcaller() then
+                    A2VeilState.SuppressNextThrow = false;
+                    return nil;
+                end;
+            end;
+            return oldNamecall(self, ...);
+        end));
+        A2VeilState.Hooked = true;
+    end);
+end
+
+-- =====================================================================
+-- ENHANCED RENDER LOOP: ESP, TRAJECTORY, IMPACT CROSS
+-- =====================================================================
+game:GetService("RunService").RenderStepped:Connect(function()
+    local camera = workspace.CurrentCamera;
+    local localPlayer = game:GetService("Players").LocalPlayer;
+    local character = localPlayer.Character;
+    local spearMode = character and character:GetAttribute("spearmode") == true;
+    local enabled = A2VeilConfig.Enabled and spearMode;
+
+    if not enabled then
+        A2VeilHideDrawings();
+        return;
+    end
+
+    -- FOV Circle
+    if A2VeilDraw.FOVCircle and A2VeilConfig.ShowFOV then
+        A2VeilDraw.FOVCircle.Visible = true;
+        A2VeilDraw.FOVCircle.Radius = A2VeilConfig.FOV;
+        A2VeilDraw.FOVCircle.Position = Vector2.new(camera.ViewportSize.X * 0.5, camera.ViewportSize.Y * 0.5);
+    elseif A2VeilDraw.FOVCircle then
+        A2VeilDraw.FOVCircle.Visible = false;
+    end
+
+    local target = A2VeilClosestTarget();
+    local startPart = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart");
+    local startPos = startPart and startPart.Position or Vector3.zero;
+
+    -- Highlight / ESP
+    if target and target.Part and target.Part.Parent then
+        A2VeilDraw.Highlight.Parent = target.Part.Parent;
+        if A2VeilConfig.ShowESP and A2VeilDraw.ESPBox then
+            local part = target.Part;
+            local screenPos, onScreen = camera:WorldToViewportPoint(part.Position);
+            if onScreen then
+                local size = 60 / (screenPos.Z or 1); -- distance-based scale
+                local x, y = screenPos.X, screenPos.Y;
+                A2VeilDraw.ESPBox.Visible = true;
+                A2VeilDraw.ESPBox.Position = Vector2.new(x - size/2, y - size/2);
+                A2VeilDraw.ESPBox.Size = Vector2.new(size, size);
+                A2VeilDraw.ESPBox.Color = A2VeilState.Charging and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(100, 210, 255);
+                -- Name
+                if A2VeilDraw.ESPName then
+                    A2VeilDraw.ESPName.Visible = true;
+                    A2VeilDraw.ESPName.Position = Vector2.new(x, y - size/2 - 10);
+                    A2VeilDraw.ESPName.Text = target.Player.Name;
+                    A2VeilDraw.ESPName.Color = Color3.fromRGB(255, 255, 255);
+                end
+                -- Distance
+                if A2VeilDraw.ESPDist then
+                    A2VeilDraw.ESPDist.Visible = true;
+                    A2VeilDraw.ESPDist.Position = Vector2.new(x, y + size/2 + 14);
+                    A2VeilDraw.ESPDist.Text = string.format("%.1fm", target.Distance);
+                    A2VeilDraw.ESPDist.Color = Color3.fromRGB(180, 220, 255);
+                end
+            else
+                if A2VeilDraw.ESPBox then A2VeilDraw.ESPBox.Visible = false end;
+                if A2VeilDraw.ESPName then A2VeilDraw.ESPName.Visible = false end;
+                if A2VeilDraw.ESPDist then A2VeilDraw.ESPDist.Visible = false end;
+            end
+        else
+            if A2VeilDraw.ESPBox then A2VeilDraw.ESPBox.Visible = false end;
+            if A2VeilDraw.ESPName then A2VeilDraw.ESPName.Visible = false end;
+            if A2VeilDraw.ESPDist then A2VeilDraw.ESPDist.Visible = false end;
+        end
+    else
+        A2VeilDraw.Highlight.Parent = nil;
+        if A2VeilDraw.ESPBox then A2VeilDraw.ESPBox.Visible = false end;
+        if A2VeilDraw.ESPName then A2VeilDraw.ESPName.Visible = false end;
+        if A2VeilDraw.ESPDist then A2VeilDraw.ESPDist.Visible = false end;
+    end
+
+    -- Trajectory + Impact cross
+    if A2VeilState.LastPredictedPos and os.clock() <= A2VeilState.LastPredictedUntil and startPart then
+        -- Update predicted position while charging
+        if A2VeilState.Charging and target and target.Part then
+            local velocity = A2VeilVelocity(target.Part, target.Player.Name);
+            local _, pred = A2VeilBallisticDirection(startPart.Position, target.Part.Position, velocity);
+            A2VeilState.LastPredictedPos = pred;
+            A2VeilState.LastPredictedUntil = os.clock() + 0.12;
+        end
+
+        -- Impact cross
+        if A2VeilConfig.ShowImpact and A2VeilDraw.ImpactCross then
+            local screen, on = camera:WorldToViewportPoint(A2VeilState.LastPredictedPos);
+            if on then
+                A2VeilDraw.ImpactCross.Visible = true;
+                A2VeilDraw.ImpactCross.Position = Vector2.new(screen.X, screen.Y);
+                A2VeilDraw.ImpactCross.Color = A2VeilState.Charging and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 210, 255);
+            else
+                A2VeilDraw.ImpactCross.Visible = false;
+            end
+        elseif A2VeilDraw.ImpactCross then
+            A2VeilDraw.ImpactCross.Visible = false;
+        end
+
+        -- Trajectory line (bullet curve)
+        if A2VeilConfig.ShowTrajectory and A2VeilDraw.TrajectoryLines then
+            local speed = math.max(1, tonumber(A2VeilConfig.SpearSpeed) or 165);
+            local gravity = A2VeilConfig.AutoGravity and math.max(0, (workspace.Gravity or 196.2) * 0.5) or math.max(0, tonumber(A2VeilConfig.Gravity) or 0);
+            local dir = (A2VeilState.LastPredictedPos - startPos).Unit;
+            local vel = dir * speed;
+            local pos = startPos;
+            local points = {};
+            for i = 1, 25 do
+                pos = pos + vel * 0.04;
+                vel = vel - Vector3.new(0, gravity, 0) * 0.04;
+                local screen, on = camera:WorldToViewportPoint(pos);
+                if on and screen.Z > 0 then
+                    table.insert(points, Vector2.new(screen.X, screen.Y));
+                else
+                    break;
+                end
+            end
+            -- Draw lines between consecutive points
+            for i = 1, #A2VeilDraw.TrajectoryLines do
+                local line = A2VeilDraw.TrajectoryLines[i];
+                if i < #points then
+                    line.Visible = true;
+                    line.From = points[i];
+                    line.To = points[i+1];
+                    line.Color = A2VeilState.Charging and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(255, 220, 100);
+                else
+                    line.Visible = false;
+                end
+            end
+        else
+            for _, line in ipairs(A2VeilDraw.TrajectoryLines or {}) do
+                line.Visible = false;
+            end
+        end
+
+        -- Tracer circle (legacy)
+        if A2VeilDraw.Tracer then
+            local screen, on = camera:WorldToViewportPoint(A2VeilState.LastPredictedPos);
+            if on then
+                A2VeilDraw.Tracer.Visible = true;
+                A2VeilDraw.Tracer.Position = Vector2.new(screen.X, screen.Y);
+            else
+                A2VeilDraw.Tracer.Visible = false;
+            end
+        end
+    else
+        if A2VeilDraw.ImpactCross then A2VeilDraw.ImpactCross.Visible = false end;
+        if A2VeilDraw.Tracer then A2VeilDraw.Tracer.Visible = false end;
+        for _, line in ipairs(A2VeilDraw.TrajectoryLines or {}) do
+            line.Visible = false;
+        end
+    end
+end);
+
+-- =====================================================================
+-- INPUT HANDLING (unchanged, kept as original)
+-- =====================================================================
+local A2VeilUserInput = game:GetService("UserInputService");
+A2VeilUserInput.InputBegan:Connect(function(input, gameProcessed)
+    local isTouch = input.UserInputType == Enum.UserInputType.Touch;
+    if gameProcessed and not isTouch then return end;
+    local character = game:GetService("Players").LocalPlayer.Character;
+    if not A2VeilConfig.Enabled or not character or character:GetAttribute("spearmode") ~= true then return end;
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        A2VeilState.Charging = true;
+    elseif isTouch then
+        local playerGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui");
+        local slasher = playerGui and playerGui:FindFirstChild("Slasher-mob");
+        local controls = slasher and slasher:FindFirstChild("Controls");
+        local attack = controls and controls:FindFirstChild("attack");
+        if attack and attack.Visible then
+            local position = input.Position;
+            local absolutePosition, absoluteSize = attack.AbsolutePosition, attack.AbsoluteSize;
+            if position.X >= absolutePosition.X and position.X <= absolutePosition.X + absoluteSize.X and position.Y >= absolutePosition.Y and position.Y <= absolutePosition.Y + absoluteSize.Y then
+                A2VeilState.Charging = true;
+                A2VeilState.TouchInput = input;
+            end;
+        end;
+    end;
+end);
+A2VeilUserInput.InputEnded:Connect(function(input)
+    if A2VeilState.Charging and (input == A2VeilState.TouchInput or input.UserInputType == Enum.UserInputType.MouseButton1) then
+        A2VeilState.Charging = false;
+        if A2VeilState.TouchInput == input then A2VeilState.TouchInput = nil end;
+        A2VeilFire();
+    end;
+end);
+
+-- =====================================================================
+-- UI SECTION FOR AIM VEIL (with new toggles)
+-- =====================================================================
+local AimVeilSection = VisualTab:AddSection({ Name = "Aim Veil — Predic Spear", Position = "Center", Box = true });
+AimVeilSection:AddParagraph({ Name = "Cara pakai", Content = "Aktifkan, masuk Spear Mode, tahan tombol serang lalu lepas. Target di dalam lingkaran akan diprediksi kecepatan dan lintasannya." });
+AimVeilSection:AddToggle({ Name = "Enable Aim Veil", Default = false, Callback = function(value) A2VeilConfig.Enabled = value; if not value then A2VeilHideDrawings() end end });
+AimVeilSection:AddToggle({ Name = "Show FOV Circle", Default = true, Callback = function(value) A2VeilConfig.ShowFOV = value end });
+AimVeilSection:AddToggle({ Name = "Show ESP", Default = true, Callback = function(value) A2VeilConfig.ShowESP = value end });
+AimVeilSection:AddToggle({ Name = "Show Trajectory Line", Default = true, Callback = function(value) A2VeilConfig.ShowTrajectory = value end });
+AimVeilSection:AddToggle({ Name = "Show Impact Point", Default = true, Callback = function(value) A2VeilConfig.ShowImpact = value end });
+AimVeilSection:AddSlider({ Name = "FOV Radius", Min = 50, Max = 500, Default = 150, Increment = 1, Rounding = 0, Callback = function(value) A2VeilConfig.FOV = value end });
+AimVeilSection:AddToggle({ Name = "Auto Predict", Default = true, Callback = function(value) A2VeilConfig.AutoPredict = value end });
+AimVeilSection:AddToggle({ Name = "Auto Gravity Fit", Default = true, Callback = function(value) A2VeilConfig.AutoGravity = value end });
+AimVeilSection:AddSlider({ Name = "Spear Speed", Min = 50, Max = 300, Default = 165, Increment = 1, Rounding = 0, Callback = function(value) A2VeilConfig.SpearSpeed = value end });
+AimVeilSection:AddSlider({ Name = "Gravity", Min = 0, Max = 300, Default = math.floor(A2VeilConfig.Gravity), Increment = 1, Rounding = 0, Callback = function(value) A2VeilConfig.Gravity = value end });
+AimVeilSection:AddSlider({ Name = "Lead Multiplier", Min = 0, Max = 2, Default = 1, Increment = 0.1, Rounding = 1, Callback = function(value) A2VeilConfig.LeadMultiplier = value end });
+AimVeilSection:AddSlider({ Name = "Close Direct Range", Min = 3, Max = 30, Default = 15, Increment = 1, Rounding = 0, Callback = function(value) A2VeilConfig.CloseRange = value end });
+AimVeilSection:AddDropdown({ Name = "Target Part", Values = { "Torso", "Head", "Root" }, Default = "Torso", Multi = false, Callback = function(value) if type(value) == "table" then value = value[1] end; if value then A2VeilConfig.TargetPart = value end end });
+
+-- =====================================================================
+-- OTHER EMPTY TABS
+-- =====================================================================
+local TeleportTab = AddEmptyTab("Teleport", "pin");
+local SettingsTab = AddEmptyTab("Settings", "gear");
+
+-- Floating menu icon
+local A2MenuIcon = ModernV2API:CreateMenuIcon({
     Image = "rbxassetid://126710436488213",
     Size = 50,
     IconScale = 0.76,
@@ -15025,15 +15407,9 @@ local KiraMenuIcon = ModernV2API:CreateMenuIcon({
     StrokeThick = 3.5,
     Draggable = true,
 });
-A2Window:AttachMenuIcon(KiraMenuIcon);
+A2Window:AttachMenuIcon(A2MenuIcon);
 
 ModernV2API.Window = A2Window;
-ModernV2API.MenuIcon = KiraMenuIcon;
-getgenv().KiraHubA2UI = {
-    Window = A2Window,
-    MenuIcon = KiraMenuIcon,
-    Library = ModernV2API,
-    State = UIState,
-    Version = "UI-only-1.0",
-};
+ModernV2API.MenuIcon = A2MenuIcon;
+getgenv().A2ModernV2Template = { Window = A2Window, MenuIcon = A2MenuIcon, Library = ModernV2API, Version = "0.2.5", Build = "AimVeilPredicSpear" };
 return A2Window;
